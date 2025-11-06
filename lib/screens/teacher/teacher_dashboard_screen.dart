@@ -1133,6 +1133,7 @@
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:gramshiksha/screens/auth/login_screen.dart';
 import 'package:provider/provider.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
@@ -1212,37 +1213,41 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen>
             onPressed: () async {
               final shouldLogout = await showDialog<bool>(
                 context: context,
-                builder:
-                    (context) => AlertDialog(
-                      title: const Text('Logout'),
-                      content: const Text('Are you sure you want to log out?'),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.pop(context, false),
-                          child: const Text('Cancel'),
-                        ),
-                        TextButton(
-                          onPressed: () => Navigator.pop(context, true),
-                          child: const Text('Logout'),
-                        ),
-                      ],
+                builder: (context) => AlertDialog(
+                  title: const Text('Logout'),
+                  content: const Text('Are you sure you want to log out?'),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context, false),
+                      child: const Text('Cancel'),
                     ),
+                    TextButton(
+                      onPressed: () => Navigator.pop(context, true),
+                      child: const Text('Logout'),
+                    ),
+                  ],
+                ),
               );
 
               if (shouldLogout == true) {
+                final authService = Provider.of<AuthService>(
+                  context,
+                  listen: false,
+                );
                 await authService.signOut();
 
-                if (mounted) {
-                  Navigator.of(
-                    context,
-                  ).pushNamedAndRemoveUntil('/login', (route) => false);
+                if (context.mounted) {
+                  // Use pushReplacement instead of pushNamedAndRemoveUntil
+                  Navigator.of(context).pushReplacement(
+                    MaterialPageRoute(
+                        builder: (context) => const LoginScreen()),
+                  );
                 }
               }
             },
           ),
         ],
       ),
-
       body: FutureBuilder<TeacherModel?>(
         future: databaseService.getTeacher(authService.currentUser!.uid),
         builder: (context, snapshot) {
@@ -1312,10 +1317,9 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen>
 
   Widget _buildWelcomeHeader(TeacherModel teacher, bool isTablet) {
     final now = DateTime.now();
-    final greeting =
-        now.hour < 12
-            ? 'Good Morning'
-            : now.hour < 18
+    final greeting = now.hour < 12
+        ? 'Good Morning'
+        : now.hour < 18
             ? 'Good Afternoon'
             : 'Good Evening';
 
@@ -1392,8 +1396,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen>
     return FutureBuilder<Map<String, int>>(
       future: _getTeacherStats(teacher, databaseService),
       builder: (context, snapshot) {
-        final stats =
-            snapshot.data ??
+        final stats = snapshot.data ??
             {'classes': 0, 'students': 0, 'assignments': 0, 'quizzes': 0};
 
         return Row(
@@ -1482,8 +1485,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen>
         'title': 'Course Content',
         'icon': Icons.book,
         'color': Colors.blue,
-        'onTap':
-            () => Navigator.push(
+        'onTap': () => Navigator.push(
               context,
               MaterialPageRoute(builder: (_) => const CourseContentScreen()),
             ),
@@ -1492,8 +1494,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen>
         'title': 'Assignments',
         'icon': Icons.assignment,
         'color': Colors.orange,
-        'onTap':
-            () => Navigator.push(
+        'onTap': () => Navigator.push(
               context,
               MaterialPageRoute(
                 builder: (_) => const AssignmentManagementScreen(),
@@ -1504,8 +1505,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen>
         'title': 'Announcements',
         'icon': Icons.campaign,
         'color': Colors.green,
-        'onTap':
-            () => Navigator.push(
+        'onTap': () => Navigator.push(
               context,
               MaterialPageRoute(
                 builder: (_) => const AnnouncementManagementScreen(),
@@ -1516,8 +1516,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen>
         'title': 'Attendance',
         'icon': Icons.check_circle,
         'color': Colors.purple,
-        'onTap':
-            () => Navigator.push(
+        'onTap': () => Navigator.push(
               context,
               MaterialPageRoute(
                 builder: (_) => const AttendanceManagementScreen(),
@@ -1528,8 +1527,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen>
         'title': 'Quizzes',
         'icon': Icons.quiz,
         'color': Colors.red,
-        'onTap':
-            () => Navigator.push(
+        'onTap': () => Navigator.push(
               context,
               MaterialPageRoute(builder: (_) => const QuizManagementScreen()),
             ),
@@ -1538,8 +1536,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen>
         'title': 'Classes',
         'icon': Icons.class_,
         'color': Colors.teal,
-        'onTap':
-            () => Navigator.push(
+        'onTap': () => Navigator.push(
               context,
               MaterialPageRoute(builder: (_) => const ClassManagementScreen()),
             ),
@@ -1548,8 +1545,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen>
         'title': 'Students',
         'icon': Icons.people,
         'color': Colors.brown,
-        'onTap':
-            () => Navigator.push(
+        'onTap': () => Navigator.push(
               context,
               MaterialPageRoute(
                 builder: (_) => const StudentManagementScreen(),
@@ -1560,8 +1556,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen>
         'title': 'Reports',
         'icon': Icons.analytics,
         'color': Colors.indigo,
-        'onTap':
-            () => ScaffoldMessenger.of(context).showSnackBar(
+        'onTap': () => ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(content: Text('Reports feature coming soon!')),
             ),
       },
@@ -1715,14 +1710,13 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen>
 
               final activities = snapshot.data!.take(3).toList();
               return Column(
-                children:
-                    activities.map((activity) {
-                      return _buildActivityItem(
-                        activity['title'] as String,
-                        activity['time'] as String,
-                        activity['icon'] as IconData,
-                      );
-                    }).toList(),
+                children: activities.map((activity) {
+                  return _buildActivityItem(
+                    activity['title'] as String,
+                    activity['time'] as String,
+                    activity['icon'] as IconData,
+                  );
+                }).toList(),
               );
             },
           ),
@@ -1836,15 +1830,14 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen>
 
               final tasks = snapshot.data!.take(3).toList();
               return Column(
-                children:
-                    tasks.map((task) {
-                      return _buildTaskItem(
-                        task['title'] as String,
-                        task['dueDate'] as String,
-                        task['color'] as Color,
-                        isUrgent: task['isUrgent'] as bool,
-                      );
-                    }).toList(),
+                children: tasks.map((task) {
+                  return _buildTaskItem(
+                    task['title'] as String,
+                    task['dueDate'] as String,
+                    task['color'] as Color,
+                    isUrgent: task['isUrgent'] as bool,
+                  );
+                }).toList(),
               );
             },
           ),
@@ -2142,9 +2135,8 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen>
                     ],
                     lineTouchData: LineTouchData(
                       touchTooltipData: LineTouchTooltipData(
-                        getTooltipColor:
-                            (touchedSpot) =>
-                                Theme.of(context).colorScheme.surface,
+                        getTooltipColor: (touchedSpot) =>
+                            Theme.of(context).colorScheme.surface,
                         getTooltipItems: (touchedSpots) {
                           return touchedSpots.map((touchedSpot) {
                             return LineTooltipItem(
@@ -2206,15 +2198,14 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen>
             classId,
           );
 
-          final weeklyRecords =
-              divisionAttendance.where((record) {
-                return record.date.isAfter(
-                      startOfWeek.subtract(const Duration(days: 1)),
-                    ) &&
-                    record.date.isBefore(
-                      endOfWeek.add(const Duration(days: 1)),
-                    );
-              }).toList();
+          final weeklyRecords = divisionAttendance.where((record) {
+            return record.date.isAfter(
+                  startOfWeek.subtract(const Duration(days: 1)),
+                ) &&
+                record.date.isBefore(
+                  endOfWeek.add(const Duration(days: 1)),
+                );
+          }).toList();
 
           allAttendanceRecords.addAll(weeklyRecords);
         } catch (e) {
@@ -2259,12 +2250,11 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen>
       double dayAttendancePercentage = 0.0;
 
       // Get records for this specific day
-      final dayRecords =
-          attendanceRecords.where((record) {
-            return record.date.year == currentDay.year &&
-                record.date.month == currentDay.month &&
-                record.date.day == currentDay.day;
-          }).toList();
+      final dayRecords = attendanceRecords.where((record) {
+        return record.date.year == currentDay.year &&
+            record.date.month == currentDay.month &&
+            record.date.day == currentDay.day;
+      }).toList();
 
       if (dayRecords.isNotEmpty) {
         // Calculate average attendance percentage for the day across all classes
@@ -2274,10 +2264,9 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen>
         for (final record in dayRecords) {
           final totalStudents = record.studentAttendance.length;
           if (totalStudents > 0) {
-            final presentCount =
-                record.studentAttendance.values
-                    .where((status) => status == AttendanceStatus.present)
-                    .length;
+            final presentCount = record.studentAttendance.values
+                .where((status) => status == AttendanceStatus.present)
+                .length;
             final percentage = (presentCount / totalStudents) * 100;
             totalPercentage += percentage;
             validRecords++;
@@ -2558,10 +2547,9 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen>
 
               tasks.add({
                 'title': 'Review assignment: "${assignment.title}"',
-                'dueDate':
-                    daysDifference == 0
-                        ? 'Due today'
-                        : daysDifference == 1
+                'dueDate': daysDifference == 0
+                    ? 'Due today'
+                    : daysDifference == 1
                         ? 'Due tomorrow'
                         : 'Due in $daysDifference days',
                 'color': isUrgent ? Colors.red : Colors.orange,
@@ -2604,31 +2592,30 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen>
   void _showNotifications(BuildContext context) {
     showDialog(
       context: context,
-      builder:
-          (context) => AlertDialog(
-            title: const Text('Notifications'),
-            content: const Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                ListTile(
-                  leading: Icon(Icons.assignment),
-                  title: Text('New assignment submission'),
-                  subtitle: Text('John Doe submitted Math Assignment 1'),
-                ),
-                ListTile(
-                  leading: Icon(Icons.message),
-                  title: Text('Parent inquiry'),
-                  subtitle: Text('Parent of Sarah Smith sent a message'),
-                ),
-              ],
+      builder: (context) => AlertDialog(
+        title: const Text('Notifications'),
+        content: const Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: Icon(Icons.assignment),
+              title: Text('New assignment submission'),
+              subtitle: Text('John Doe submitted Math Assignment 1'),
             ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Close'),
-              ),
-            ],
+            ListTile(
+              leading: Icon(Icons.message),
+              title: Text('Parent inquiry'),
+              subtitle: Text('Parent of Sarah Smith sent a message'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
           ),
+        ],
+      ),
     );
   }
 
