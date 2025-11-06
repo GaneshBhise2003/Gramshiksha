@@ -1999,4 +1999,18 @@ class DatabaseService {
       return null;
     }
   }
+
+//Added by kaustubh
+  Stream<List<AttendanceModel>> getAttendanceForClass(
+      String classId, DateTime startDate, DateTime endDate) {
+    return _firestore
+        .collection('attendance')
+        .where('classId', isEqualTo: classId)
+        .where('date', isGreaterThanOrEqualTo: startDate)
+        .where('date', isLessThanOrEqualTo: endDate)
+        .snapshots()
+        .map((snapshot) => snapshot.docs
+            .map((doc) => AttendanceModel.fromMap(doc.data()))
+            .toList());
+  }
 }

@@ -98,8 +98,11 @@
 //   }
 // }
 //updated by kaustubh
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -108,6 +111,7 @@ import 'dart:convert'; // For base64 decoding
 import '../../services/database_service.dart';
 import '../../models/student_model.dart';
 import '../../models/course_model.dart';
+import 'package:open_file/open_file.dart';
 
 class StudentCoursesScreen extends StatefulWidget {
   final StudentModel student;
@@ -468,48 +472,157 @@ class _StudentCoursesScreenState extends State<StudentCoursesScreen> {
     }
   }
 
-  void _openPdfFromBase64(CourseMaterial material) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Open PDF: ${material.fileName}'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
+  // void _openPdfFromBase64(CourseMaterial material) {
+  //   showDialog(
+  //     context: context,
+  //     builder: (context) => AlertDialog(
+  //       title: Text('Open PDF: ${material.fileName}'),
+  //       content: Column(
+  //         mainAxisSize: MainAxisSize.min,
+  //         children: [
+  //           const Icon(Icons.picture_as_pdf, size: 48, color: Colors.red),
+  //           const SizedBox(height: 16),
+  //           Text(
+  //             'PDF Document: ${material.title}',
+  //             textAlign: TextAlign.center,
+  //           ),
+  //           if (material.fileSize != null)
+  //             Text(
+  //               'Size: ${material.displayFileSize}',
+  //               style: TextStyle(color: Colors.grey[600]),
+  //             ),
+  //         ],
+  //       ),
+  //       actions: [
+  //         TextButton(
+  //           onPressed: () => Navigator.pop(context),
+  //           child: const Text('Cancel'),
+  //         ),
+  //         ElevatedButton(
+  //           onPressed: () {
+  //             Navigator.pop(context);
+  //             ScaffoldMessenger.of(context).showSnackBar(
+  //               SnackBar(
+  //                 content: Text('Opening PDF: ${material.title}'),
+  //                 backgroundColor: Colors.green,
+  //               ),
+  //             );
+  //             // Here you would implement actual PDF opening logic
+  //           },
+  //           child: const Text('Open PDF'),
+  //         ),
+  //       ],
+  //     ),
+  //   );
+  // }
+  void _openPdfFromBase64(CourseMaterial material) async {
+    if (!material.hasFileData) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('PDF data not available for ${material.title}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    // Show immediate loading feedback
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
           children: [
-            const Icon(Icons.picture_as_pdf, size: 48, color: Colors.red),
-            const SizedBox(height: 16),
-            Text(
-              'PDF Document: ${material.title}',
-              textAlign: TextAlign.center,
+            const SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
             ),
-            if (material.fileSize != null)
-              Text(
-                'Size: ${material.displayFileSize}',
-                style: TextStyle(color: Colors.grey[600]),
-              ),
+            const SizedBox(width: 12),
+            Text('Opening ${material.title}...'),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Opening PDF: ${material.title}'),
-                  backgroundColor: Colors.green,
-                ),
-              );
-              // Here you would implement actual PDF opening logic
-            },
-            child: const Text('Open PDF'),
-          ),
-        ],
+        duration: const Duration(seconds: 30), // Long duration for loading
       ),
     );
+
+    try {
+      // Decode base64 to bytes
+      final pdfBytes = base64Decode(material.fileData!);
+
+      // Get temporary directory
+      final tempDir = await getTemporaryDirectory();
+      final fileName = material.fileName ??
+          '${material.title}_${DateTime.now().millisecondsSinceEpoch}.pdf';
+      final filePath = '${tempDir.path}/$fileName';
+
+      // Create and write to file
+      final file = File(filePath);
+      await file.writeAsBytes(pdfBytes);
+
+      // Hide the loading snackbar
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+
+      // Open the file with device's default PDF viewer
+      final result = await OpenFile.open(filePath);
+
+      // Handle the result
+      switch (result.type) {
+        case ResultType.done:
+          // Success - PDF opened successfully
+          print('PDF opened successfully');
+          break;
+        case ResultType.noAppToOpen:
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text(
+                  'No PDF viewer app found. Please install a PDF reader.'),
+              backgroundColor: Colors.orange,
+              action: SnackBarAction(
+                label: 'OK',
+                onPressed: () {},
+              ),
+            ),
+          );
+          break;
+        case ResultType.fileNotFound:
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('PDF file not found: $fileName'),
+              backgroundColor: Colors.red,
+            ),
+          );
+          break;
+        case ResultType.permissionDenied:
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Permission denied to open PDF file'),
+              backgroundColor: Colors.red,
+            ),
+          );
+          break;
+        case ResultType.error:
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error opening PDF: ${result.message}'),
+              backgroundColor: Colors.red,
+            ),
+          );
+          break;
+      }
+    } catch (e) {
+      // Hide loading and show error
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error opening PDF: ${e.toString()}'),
+          backgroundColor: Colors.red,
+          action: SnackBarAction(
+            label: 'Retry',
+            onPressed: () => _openPdfFromBase64(material),
+          ),
+        ),
+      );
+    }
   }
 
   void _showImageFromBase64(CourseMaterial material) {
