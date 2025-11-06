@@ -105,30 +105,30 @@ class _TeacherHomeScreenState extends State<TeacherHomeScreen> {
         final isDesktop = constraints.maxWidth >= 900;
 
         return Scaffold(
-          appBar:
-              isDesktop
-                  ? null
-                  : AppBar(
-                    title: const Text('Teacher Portal'),
-                    backgroundColor: Colors.transparent,
-                    elevation: 0,
-                    surfaceTintColor: Colors.transparent,
-                    actions: [
-                      IconButton(
-                        icon: const Icon(Icons.person_outline),
-                        onPressed: () {},
-                        tooltip: 'Profile',
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.logout),
-                        onPressed: () async {
-                          await authService.signOut();
-                        },
-                        tooltip: 'Logout',
-                        color: Colors.red.shade600,
-                      ),
-                    ],
-                  ),
+          // appBar:
+          //     isDesktop
+          //         ? null
+          //         : AppBar(
+          //           title: const Text('Teacher Portal'),
+          //           backgroundColor: Colors.transparent,
+          //           elevation: 0,
+          //           surfaceTintColor: Colors.transparent,
+          //           actions: [
+          //             IconButton(
+          //               icon: const Icon(Icons.person_outline),
+          //               onPressed: () {},
+          //               tooltip: 'Profile',
+          //             ),
+          //             IconButton(
+          //               icon: const Icon(Icons.logout),
+          //               onPressed: () async {
+          //                 await authService.signOut();
+          //               },
+          //               tooltip: 'Logout',
+          //               color: Colors.red.shade600,
+          //             ),
+          //           ],
+          //         ),
           // drawer: isDesktop ? null : _buildDrawer(authService),
           body: Row(
             children: [

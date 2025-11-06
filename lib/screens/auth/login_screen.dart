@@ -30,17 +30,48 @@ class _LoginScreenState extends State<LoginScreen> {
 
     setState(() => _isLoading = true);
 
-    final authService = Provider.of<AuthService>(context, listen: false);
-    final error = await authService.signIn(
-      email: _emailController.text.trim(),
-      password: _passwordController.text,
-    );
+    try {
+      final authService = Provider.of<AuthService>(context, listen: false);
+      final error = await authService.signIn(
+        email: _emailController.text.trim(),
+        password: _passwordController.text,
+      );
 
-    setState(() => _isLoading = false);
+      if (!mounted) return;
 
-    if (error != null && mounted) {
+      setState(() => _isLoading = false);
+
+      if (error != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(error),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      } else {
+        // Login successful - show success message
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Login successful!'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
+
+        // The navigation will be handled by AuthWrapper automatically
+        // If you need immediate navigation, uncomment below:
+        // Navigator.pushReplacementNamed(context, '/home');
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error), backgroundColor: Colors.red),
+        SnackBar(
+          content: Text('An unexpected error occurred: $e'),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 3),
+        ),
       );
     }
   }
@@ -76,9 +107,9 @@ class _LoginScreenState extends State<LoginScreen> {
                   const SizedBox(height: 8),
                   Text(
                     'Sign in to continue',
-                    style: Theme.of(
-                      context,
-                    ).textTheme.bodyLarge?.copyWith(color: Colors.grey[600]),
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                      color: Colors.grey[600],
+                    ),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 48),
@@ -87,16 +118,21 @@ class _LoginScreenState extends State<LoginScreen> {
                   TextFormField(
                     controller: _emailController,
                     keyboardType: TextInputType.emailAddress,
+                    textInputAction: TextInputAction.next,
                     decoration: const InputDecoration(
                       labelText: 'Email',
                       prefixIcon: Icon(Icons.email_outlined),
+                      border: OutlineInputBorder(),
                     ),
                     validator: (value) {
                       if (value == null || value.isEmpty) {
                         return 'Please enter your email';
                       }
-                      if (!value.contains('@')) {
-                        return 'Please enter a valid email';
+                      final emailRegex = RegExp(
+                        r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$',
+                      );
+                      if (!emailRegex.hasMatch(value)) {
+                        return 'Please enter a valid email address';
                       }
                       return null;
                     },
@@ -107,9 +143,11 @@ class _LoginScreenState extends State<LoginScreen> {
                   TextFormField(
                     controller: _passwordController,
                     obscureText: _obscurePassword,
+                    textInputAction: TextInputAction.done,
                     decoration: InputDecoration(
                       labelText: 'Password',
                       prefixIcon: const Icon(Icons.lock_outline),
+                      border: const OutlineInputBorder(),
                       suffixIcon: IconButton(
                         icon: Icon(
                           _obscurePassword
@@ -121,6 +159,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         },
                       ),
                     ),
+                    onFieldSubmitted: (_) => _signIn(),
                     validator: (value) {
                       if (value == null || value.isEmpty) {
                         return 'Please enter your password';
@@ -137,11 +176,14 @@ class _LoginScreenState extends State<LoginScreen> {
                   Align(
                     alignment: Alignment.centerRight,
                     child: TextButton(
-                      onPressed: () {
+                      onPressed: _isLoading
+                          ? null
+                          : () {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => const ForgotPasswordScreen(),
+                            builder: (context) =>
+                            const ForgotPasswordScreen(),
                           ),
                         );
                       },
@@ -158,28 +200,34 @@ class _LoginScreenState extends State<LoginScreen> {
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
+                      backgroundColor: Theme.of(context).colorScheme.primary,
+                      foregroundColor: Theme.of(context).colorScheme.onPrimary,
                     ),
-                    child:
-                        _isLoading
-                            ? const SizedBox(
-                              height: 20,
-                              width: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                            : const Text(
-                              'Sign In',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
+                    child: _isLoading
+                        ? const SizedBox(
+                      height: 20,
+                      width: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                        : const Text(
+                      'Sign In',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ),
                   const SizedBox(height: 24),
 
                   // Divider
                   Row(
                     children: [
-                      Expanded(child: Divider(color: Colors.grey[400])),
+                      Expanded(
+                        child: Divider(color: Colors.grey[400]),
+                      ),
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 16),
                         child: Text(
@@ -187,18 +235,23 @@ class _LoginScreenState extends State<LoginScreen> {
                           style: TextStyle(color: Colors.grey[600]),
                         ),
                       ),
-                      Expanded(child: Divider(color: Colors.grey[400])),
+                      Expanded(
+                        child: Divider(color: Colors.grey[400]),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 24),
 
                   // Admin Registration Button
                   OutlinedButton.icon(
-                    onPressed: () {
+                    onPressed: _isLoading
+                        ? null
+                        : () {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => const AdminRegisterScreen(),
+                          builder: (context) =>
+                          const AdminRegisterScreen(),
                         ),
                       );
                     },
@@ -214,7 +267,10 @@ class _LoginScreenState extends State<LoginScreen> {
                   const SizedBox(height: 8),
                   Text(
                     'Administrators can create and manage institutions',
-                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey[600],
+                    ),
                     textAlign: TextAlign.center,
                   ),
                 ],

@@ -23,6 +23,8 @@ class _CourseCreateScreenState extends State<CourseCreateScreen> {
   String? _selectedClassId;
   bool _isLoading = false;
   List<CourseMaterial> _materials = [];
+  List<ClassModel> _classes = [];
+  bool _isLoadingClasses = true;
 
   @override
   void initState() {
@@ -34,6 +36,8 @@ class _CourseCreateScreenState extends State<CourseCreateScreen> {
     );
     _selectedClassId = widget.course?.classId;
     _materials = List.from(widget.course?.materials ?? []);
+
+    _loadClasses();
   }
 
   @override
@@ -41,6 +45,31 @@ class _CourseCreateScreenState extends State<CourseCreateScreen> {
     _titleController.dispose();
     _descriptionController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadClasses() async {
+    final authService = Provider.of<AuthService>(context, listen: false);
+    final databaseService = Provider.of<DatabaseService>(context, listen: false);
+    final currentUser = authService.currentUser;
+
+    if (currentUser == null) {
+      setState(() => _isLoadingClasses = false);
+      return;
+    }
+
+    try {
+      final classes = await databaseService.getTeacherClasses(currentUser.uid).first;
+      if (mounted) {
+        setState(() {
+          _classes = classes;
+          _isLoadingClasses = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoadingClasses = false);
+      }
+    }
   }
 
   Future<void> _saveCourse() async {
@@ -57,10 +86,7 @@ class _CourseCreateScreenState extends State<CourseCreateScreen> {
     setState(() => _isLoading = true);
 
     final authService = Provider.of<AuthService>(context, listen: false);
-    final databaseService = Provider.of<DatabaseService>(
-      context,
-      listen: false,
-    );
+    final databaseService = Provider.of<DatabaseService>(context, listen: false);
     final currentUser = authService.currentUser;
 
     if (currentUser == null) {
@@ -166,7 +192,6 @@ class _CourseCreateScreenState extends State<CourseCreateScreen> {
   @override
   Widget build(BuildContext context) {
     final authService = Provider.of<AuthService>(context);
-    final databaseService = Provider.of<DatabaseService>(context);
     final currentUser = authService.currentUser;
     final isEditing = widget.course != null;
 
@@ -189,10 +214,10 @@ class _CourseCreateScreenState extends State<CourseCreateScreen> {
               onPressed: _isLoading ? null : _saveCourse,
               icon: _isLoading
                   ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
                   : const Icon(Icons.save, size: 18),
               label: Text(isEditing ? 'Update' : 'Save'),
               style: FilledButton.styleFrom(
@@ -219,89 +244,13 @@ class _CourseCreateScreenState extends State<CourseCreateScreen> {
                       Text(
                         'Course Details',
                         style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                              fontWeight: FontWeight.bold,
-                            ),
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                       const SizedBox(height: 16),
 
                       // Class Selection
-                      StreamBuilder<List<ClassModel>>(
-                        stream: databaseService.getTeacherClasses(
-                          currentUser.uid,
-                        ),
-                        builder: (context, snapshot) {
-                          // if (!snapshot.hasData) {
-                          //   return const CircularProgressIndicator();
-                          // }
-
-                          final classes = snapshot.data!;
-
-                          // Handle empty classes
-                          if (classes.isEmpty) {
-                            return Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.all(16),
-                                  decoration: BoxDecoration(
-                                    color: Colors.orange.withOpacity(0.1),
-                                    borderRadius: BorderRadius.circular(8),
-                                    border: Border.all(
-                                      color: Colors.orange.withOpacity(0.3),
-                                    ),
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      Icon(
-                                        Icons.info_outline,
-                                        color: Colors.orange,
-                                      ),
-                                      const SizedBox(width: 12),
-                                      Expanded(
-                                        child: Text(
-                                          'No classes available. Please create a class first or contact your administrator to assign classes to you.',
-                                          style: TextStyle(
-                                            color: Colors.orange.shade900,
-                                            fontSize: 14,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(height: 16),
-                              ],
-                            );
-                          }
-
-                          return DropdownButtonFormField<String>(
-                            value: _selectedClassId,
-                            decoration: const InputDecoration(
-                              labelText: 'Select Class *',
-                              prefixIcon: Icon(Icons.class_),
-                            ),
-                            items: classes.map((classModel) {
-                              return DropdownMenuItem<String>(
-                                value: classModel.id,
-                                child: Text(
-                                  '${classModel.name} - ${classModel.subject}',
-                                ),
-                              );
-                            }).toList(),
-                            onChanged: (value) {
-                              setState(() {
-                                _selectedClassId = value;
-                              });
-                            },
-                            validator: (value) {
-                              if (value == null || value.isEmpty) {
-                                return 'Please select a class';
-                              }
-                              return null;
-                            },
-                          );
-                        },
-                      ),
+                      _buildClassSelection(),
                       const SizedBox(height: 16),
 
                       // Title
@@ -453,22 +402,92 @@ class _CourseCreateScreenState extends State<CourseCreateScreen> {
                 ),
                 child: _isLoading
                     ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
+                  height: 20,
+                  width: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
                     : Text(
-                        isEditing ? 'Update Course' : 'Create Course',
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
+                  isEditing ? 'Update Course' : 'Create Course',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ),
             ],
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildClassSelection() {
+    if (_isLoadingClasses) {
+      return const CircularProgressIndicator();
+    }
+
+    if (_classes.isEmpty) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.orange.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: Colors.orange.withOpacity(0.3),
+              ),
+            ),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.info_outline,
+                  color: Colors.orange,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'No classes available. Please create a class first or contact your administrator to assign classes to you.',
+                    style: TextStyle(
+                      color: Colors.orange.shade900,
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+        ],
+      );
+    }
+
+    return DropdownButtonFormField<String>(
+      value: _selectedClassId,
+      decoration: const InputDecoration(
+        labelText: 'Select Class *',
+        prefixIcon: Icon(Icons.class_),
+      ),
+      items: _classes.map((classModel) {
+        return DropdownMenuItem<String>(
+          value: classModel.id,
+          child: Text(
+            '${classModel.name} - ${classModel.subject}',
+          ),
+        );
+      }).toList(),
+      onChanged: (value) {
+        setState(() {
+          _selectedClassId = value;
+        });
+      },
+      validator: (value) {
+        if (value == null || value.isEmpty) {
+          return 'Please select a class';
+        }
+        return null;
+      },
     );
   }
 

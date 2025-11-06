@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
-// import 'package:uuid/uuid.dart'; // Not needed for current implementation
 import '../../services/database_service.dart';
 import '../../services/auth_service.dart';
 import '../../models/teacher_model.dart';
@@ -23,11 +22,14 @@ class _AnnouncementManagementScreenState
   late TabController _tabController;
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
+  TeacherModel? _cachedTeacher;
+  bool _isLoadingTeacher = true;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _loadTeacherData();
   }
 
   @override
@@ -37,10 +39,27 @@ class _AnnouncementManagementScreenState
     super.dispose();
   }
 
+  Future<void> _loadTeacherData() async {
+    final authService = Provider.of<AuthService>(context, listen: false);
+    final databaseService = Provider.of<DatabaseService>(context, listen: false);
+
+    try {
+      final teacher = await databaseService.getTeacher(authService.currentUser!.uid);
+      if (mounted) {
+        setState(() {
+          _cachedTeacher = teacher;
+          _isLoadingTeacher = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoadingTeacher = false);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final authService = Provider.of<AuthService>(context);
-    final databaseService = Provider.of<DatabaseService>(context);
     final isTablet = ResponsiveHelper.isTablet(context);
 
     return Scaffold(
@@ -55,162 +74,186 @@ class _AnnouncementManagementScreenState
           ],
         ),
       ),
-      body: FutureBuilder<TeacherModel?>(
-        future: databaseService.getTeacher(authService.currentUser!.uid),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          if (!snapshot.hasData) {
-            return const Center(child: Text('Teacher data not found'));
-          }
-
-          final teacher = snapshot.data!;
-          return TabBarView(
-            controller: _tabController,
-            children: [
-              _buildAnnouncementsTab(teacher, databaseService, isTablet),
-              _buildCreateAnnouncementTab(teacher, databaseService, isTablet),
-            ],
-          );
-        },
-      ),
+      body: _buildBody(isTablet),
     );
   }
 
-  Widget _buildAnnouncementsTab(
-    TeacherModel teacher,
-    DatabaseService databaseService,
-    bool isTablet,
-  ) {
+  Widget _buildBody(bool isTablet) {
+    if (_isLoadingTeacher) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_cachedTeacher == null) {
+      return const Center(child: Text('Teacher data not found'));
+    }
+
+    return TabBarView(
+      controller: _tabController,
+      children: [
+        _AnnouncementsListTab(
+          teacher: _cachedTeacher!,
+          searchQuery: _searchQuery,
+          searchController: _searchController,
+          onSearchChanged: (query) => setState(() => _searchQuery = query),
+        ),
+        _CreateAnnouncementTab(
+          teacher: _cachedTeacher!,
+          isTablet: isTablet,
+        ),
+      ],
+    );
+  }
+}
+
+class _AnnouncementsListTab extends StatefulWidget {
+  final TeacherModel teacher;
+  final String searchQuery;
+  final TextEditingController searchController;
+  final ValueChanged<String> onSearchChanged;
+
+  const _AnnouncementsListTab({
+    required this.teacher,
+    required this.searchQuery,
+    required this.searchController,
+    required this.onSearchChanged,
+  });
+
+  @override
+  State<_AnnouncementsListTab> createState() => _AnnouncementsListTabState();
+}
+
+class _AnnouncementsListTabState extends State<_AnnouncementsListTab>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    final isTablet = ResponsiveHelper.isTablet(context);
+    final databaseService = Provider.of<DatabaseService>(context);
+
     return Column(
       children: [
-        // Search and Filter Bar
+        // Search Bar
         Container(
           padding: EdgeInsets.all(isTablet ? 20 : 16),
-          child: Column(
-            children: [
-              TextField(
-                controller: _searchController,
-                onChanged: (value) {
-                  setState(() {
-                    _searchQuery = value.toLowerCase();
-                  });
+          child: TextField(
+            controller: widget.searchController,
+            onChanged: widget.onSearchChanged,
+            decoration: InputDecoration(
+              hintText: 'Search announcements...',
+              prefixIcon: const Icon(Icons.search),
+              suffixIcon: widget.searchQuery.isNotEmpty
+                  ? IconButton(
+                icon: const Icon(Icons.clear),
+                onPressed: () {
+                  widget.searchController.clear();
+                  widget.onSearchChanged('');
                 },
-                decoration: InputDecoration(
-                  hintText: 'Search announcements...',
-                  prefixIcon: const Icon(Icons.search),
-                  suffixIcon:
-                      _searchQuery.isNotEmpty
-                          ? IconButton(
-                            icon: const Icon(Icons.clear),
-                            onPressed: () {
-                              _searchController.clear();
-                              setState(() {
-                                _searchQuery = '';
-                              });
-                            },
-                          )
-                          : null,
-                ),
-              ),
-            ],
+              )
+                  : null,
+            ),
           ),
         ),
         // Announcements List
         Expanded(
-          child: StreamBuilder<List<AnnouncementModel>>(
-            stream: databaseService.getAnnouncementsForTeacher(teacher.uid),
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator());
-              }
-
-              if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                return Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.campaign_outlined,
-                        size: 64,
-                        color: Theme.of(
-                          context,
-                        ).colorScheme.onSurface.withOpacity(0.5),
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'No announcements found',
-                        style: TextStyle(
-                          fontSize: 18,
-                          color: Theme.of(
-                            context,
-                          ).colorScheme.onSurface.withOpacity(0.7),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Create your first announcement to get started',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Theme.of(
-                            context,
-                          ).colorScheme.onSurface.withOpacity(0.5),
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              }
-
-              var announcements = snapshot.data!;
-
-              if (_searchQuery.isNotEmpty) {
-                announcements =
-                    announcements.where((announcement) {
-                      return announcement.title.toLowerCase().contains(
-                            _searchQuery,
-                          ) ||
-                          announcement.content.toLowerCase().contains(
-                            _searchQuery,
-                          );
-                    }).toList();
-              }
-
-              return RefreshIndicator(
-                onRefresh: () async {
-                  setState(() {});
-                },
-                child: ListView.builder(
-                  padding: EdgeInsets.all(isTablet ? 20 : 16),
-                  itemCount: announcements.length,
-                  itemBuilder: (context, index) {
-                    final announcement = announcements[index];
-                    return _buildAnnouncementCard(
-                      announcement,
-                      databaseService,
-                      isTablet,
-                    );
-                  },
-                ),
-              );
-            },
+          child: _AnnouncementsList(
+            teacher: widget.teacher,
+            searchQuery: widget.searchQuery,
           ),
         ),
       ],
     );
   }
+}
 
-  Widget _buildAnnouncementCard(
-    AnnouncementModel announcement,
-    DatabaseService databaseService,
-    bool isTablet,
-  ) {
+class _AnnouncementsList extends StatefulWidget {
+  final TeacherModel teacher;
+  final String searchQuery;
+
+  const _AnnouncementsList({
+    required this.teacher,
+    required this.searchQuery,
+  });
+
+  @override
+  State<_AnnouncementsList> createState() => _AnnouncementsListState();
+}
+
+class _AnnouncementsListState extends State<_AnnouncementsList> {
+  List<AnnouncementModel> _announcements = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAnnouncements();
+  }
+
+  Future<void> _loadAnnouncements() async {
+    final databaseService = Provider.of<DatabaseService>(context, listen: false);
+
+    try {
+      final announcements = await databaseService.getAnnouncementsForTeacher(widget.teacher.uid).first;
+      if (mounted) {
+        setState(() {
+          _announcements = announcements;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    var announcements = _announcements;
+    if (widget.searchQuery.isNotEmpty) {
+      announcements = announcements.where((announcement) {
+        return announcement.title.toLowerCase().contains(widget.searchQuery) ||
+            announcement.content.toLowerCase().contains(widget.searchQuery);
+      }).toList();
+    }
+
+    if (announcements.isEmpty) {
+      return _EmptyAnnouncementsState(searchQuery: widget.searchQuery);
+    }
+
+    return RefreshIndicator(
+      onRefresh: _loadAnnouncements,
+      child: ListView.builder(
+        padding: EdgeInsets.all(ResponsiveHelper.isTablet(context) ? 20 : 16),
+        itemCount: announcements.length,
+        itemBuilder: (context, index) => _AnnouncementCard(
+          announcement: announcements[index],
+        ),
+      ),
+    );
+  }
+}
+
+class _AnnouncementCard extends StatelessWidget {
+  final AnnouncementModel announcement;
+
+  const _AnnouncementCard({required this.announcement});
+
+  @override
+  Widget build(BuildContext context) {
+    final isTablet = ResponsiveHelper.isTablet(context);
+    final databaseService = Provider.of<DatabaseService>(context);
+
     return Card(
       margin: EdgeInsets.only(bottom: isTablet ? 16 : 12),
       child: InkWell(
-        onTap: () => _showAnnouncementDetails(announcement),
+        onTap: () => _showAnnouncementDetails(context, announcement),
         borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: EdgeInsets.all(isTablet ? 20 : 16),
@@ -231,8 +274,7 @@ class _AnnouncementManagementScreenState
                                 style: TextStyle(
                                   fontSize: isTablet ? 18 : 16,
                                   fontWeight: FontWeight.bold,
-                                  color:
-                                      Theme.of(context).colorScheme.onSurface,
+                                  color: Theme.of(context).colorScheme.onSurface,
                                 ),
                               ),
                             ),
@@ -264,41 +306,38 @@ class _AnnouncementManagementScreenState
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             fontSize: isTablet ? 14 : 12,
-                            color: Theme.of(
-                              context,
-                            ).colorScheme.onSurface.withOpacity(0.7),
+                            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
                           ),
                         ),
                       ],
                     ),
                   ),
                   PopupMenuButton(
-                    itemBuilder:
-                        (context) => [
-                          const PopupMenuItem(
-                            value: 'edit',
-                            child: ListTile(
-                              leading: Icon(Icons.edit),
-                              title: Text('Edit'),
-                              contentPadding: EdgeInsets.zero,
-                            ),
-                          ),
-                          const PopupMenuItem(
-                            value: 'delete',
-                            child: ListTile(
-                              leading: Icon(Icons.delete),
-                              title: Text('Delete'),
-                              contentPadding: EdgeInsets.zero,
-                            ),
-                          ),
-                        ],
+                    itemBuilder: (context) => [
+                      const PopupMenuItem(
+                        value: 'edit',
+                        child: ListTile(
+                          leading: Icon(Icons.edit),
+                          title: Text('Edit'),
+                          contentPadding: EdgeInsets.zero,
+                        ),
+                      ),
+                      const PopupMenuItem(
+                        value: 'delete',
+                        child: ListTile(
+                          leading: Icon(Icons.delete),
+                          title: Text('Delete'),
+                          contentPadding: EdgeInsets.zero,
+                        ),
+                      ),
+                    ],
                     onSelected: (value) {
                       switch (value) {
                         case 'edit':
-                          _editAnnouncement(announcement);
+                          _editAnnouncement(context);
                           break;
                         case 'delete':
-                          _deleteAnnouncement(announcement);
+                          _deleteAnnouncement(context, announcement);
                           break;
                       }
                     },
@@ -326,9 +365,7 @@ class _AnnouncementManagementScreenState
                     'Classes: ${announcement.classIds.isEmpty ? "All" : announcement.classIds.length}',
                     style: TextStyle(
                       fontSize: 12,
-                      color: Theme.of(
-                        context,
-                      ).colorScheme.onSurface.withOpacity(0.6),
+                      color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
                     ),
                   ),
                 ],
@@ -340,152 +377,222 @@ class _AnnouncementManagementScreenState
     );
   }
 
-  Widget _buildCreateAnnouncementTab(
-    TeacherModel teacher,
-    DatabaseService databaseService,
-    bool isTablet,
-  ) {
-    return _CreateAnnouncementForm(
-      teacher: teacher,
-      databaseService: databaseService,
-      isTablet: isTablet,
-    );
-  }
-
-  void _showAnnouncementDetails(AnnouncementModel announcement) {
+  void _showAnnouncementDetails(BuildContext context, AnnouncementModel announcement) {
     showDialog(
       context: context,
-      builder:
-          (context) => Dialog(
-            child: Container(
-              width: ResponsiveHelper.isDesktop(context) ? 600 : null,
-              constraints: const BoxConstraints(maxHeight: 600),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  AppBar(
-                    title: Text(announcement.title),
-                    automaticallyImplyLeading: false,
-                    actions: [
-                      IconButton(
-                        icon: const Icon(Icons.close),
-                        onPressed: () => Navigator.pop(context),
-                      ),
-                    ],
-                  ),
-                  Expanded(
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.all(20),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Content',
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
-                          const SizedBox(height: 8),
-                          Text(announcement.content),
-                          const SizedBox(height: 20),
-                          Text(
-                            'Status',
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            announcement.isPublished ? 'Published' : 'Draft',
-                          ),
-                          const SizedBox(height: 20),
-                          Text(
-                            'Created',
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            DateFormat(
-                              'MMM dd, yyyy hh:mm a',
-                            ).format(announcement.createdAt),
-                          ),
-                        ],
-                      ),
-                    ),
+      builder: (context) => Dialog(
+        child: Container(
+          width: ResponsiveHelper.isDesktop(context) ? 600 : null,
+          constraints: const BoxConstraints(maxHeight: 600),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              AppBar(
+                title: Text(announcement.title),
+                automaticallyImplyLeading: false,
+                actions: [
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.pop(context),
                   ),
                 ],
               ),
-            ),
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Content',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(announcement.content),
+                      const SizedBox(height: 20),
+                      Text(
+                        'Status',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(announcement.isPublished ? 'Published' : 'Draft'),
+                      const SizedBox(height: 20),
+                      Text(
+                        'Created',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        DateFormat('MMM dd, yyyy hh:mm a').format(announcement.createdAt),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
+        ),
+      ),
     );
   }
 
-  void _editAnnouncement(AnnouncementModel announcement) {
+  void _editAnnouncement(BuildContext context) {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Edit announcement feature coming soon!')),
     );
   }
 
-  void _deleteAnnouncement(AnnouncementModel announcement) {
+  void _deleteAnnouncement(BuildContext context, AnnouncementModel announcement) {
     showDialog(
       context: context,
-      builder:
-          (context) => AlertDialog(
-            title: const Text('Delete Announcement'),
-            content: Text(
-              'Are you sure you want to delete "${announcement.title}"?',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Cancel'),
-              ),
-              TextButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Delete announcement feature coming soon!'),
-                    ),
-                  );
-                },
-                child: const Text(
-                  'Delete',
-                  style: TextStyle(color: Colors.red),
-                ),
-              ),
-            ],
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Announcement'),
+        content: Text('Are you sure you want to delete "${announcement.title}"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
           ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Delete announcement feature coming soon!'),
+                ),
+              );
+            },
+            child: const Text(
+              'Delete',
+              style: TextStyle(color: Colors.red),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _EmptyAnnouncementsState extends StatelessWidget {
+  final String searchQuery;
+
+  const _EmptyAnnouncementsState({required this.searchQuery});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.campaign_outlined,
+            size: 64,
+            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            searchQuery.isEmpty ? 'No announcements found' : 'No matching announcements',
+            style: TextStyle(
+              fontSize: 18,
+              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            searchQuery.isEmpty
+                ? 'Create your first announcement to get started'
+                : 'Try a different search term',
+            style: TextStyle(
+              fontSize: 14,
+              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CreateAnnouncementTab extends StatefulWidget {
+  final TeacherModel teacher;
+  final bool isTablet;
+
+  const _CreateAnnouncementTab({
+    required this.teacher,
+    required this.isTablet,
+  });
+
+  @override
+  State<_CreateAnnouncementTab> createState() => _CreateAnnouncementTabState();
+}
+
+class _CreateAnnouncementTabState extends State<_CreateAnnouncementTab>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    return _CreateAnnouncementForm(
+      teacher: widget.teacher,
+      isTablet: widget.isTablet,
     );
   }
 }
 
 class _CreateAnnouncementForm extends StatefulWidget {
   final TeacherModel teacher;
-  final DatabaseService databaseService;
   final bool isTablet;
 
   const _CreateAnnouncementForm({
     required this.teacher,
-    required this.databaseService,
     required this.isTablet,
   });
 
   @override
-  State<_CreateAnnouncementForm> createState() =>
-      __CreateAnnouncementFormState();
+  State<_CreateAnnouncementForm> createState() => _CreateAnnouncementFormState();
 }
 
-class __CreateAnnouncementFormState extends State<_CreateAnnouncementForm> {
+class _CreateAnnouncementFormState extends State<_CreateAnnouncementForm> {
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
   final _contentController = TextEditingController();
   List<String> _selectedClassIds = [];
   bool _isPublished = true;
-  // DateTime? _scheduledFor; // For future scheduled announcements feature
   bool _isLoading = false;
+  List<ClassModel> _classes = [];
+  bool _isLoadingClasses = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadClasses();
+  }
 
   @override
   void dispose() {
     _titleController.dispose();
     _contentController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadClasses() async {
+    final databaseService = Provider.of<DatabaseService>(context, listen: false);
+
+    try {
+      final classes = await databaseService.getTeacherClasses(widget.teacher.uid).first;
+      if (mounted) {
+        setState(() {
+          _classes = classes;
+          _isLoadingClasses = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoadingClasses = false);
+      }
+    }
   }
 
   @override
@@ -544,69 +651,8 @@ class __CreateAnnouncementFormState extends State<_CreateAnnouncementForm> {
             const SizedBox(height: 16),
 
             // Class Selection
-            StreamBuilder<List<ClassModel>>(
-              stream: widget.databaseService.getTeacherClasses(
-                widget.teacher.uid,
-              ),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const CircularProgressIndicator();
-                }
+            _buildClassSelection(),
 
-                if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                  return Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Text(
-                        'No classes available. This announcement will be sent to all students.',
-                        style: TextStyle(
-                          color: Theme.of(
-                            context,
-                          ).colorScheme.onSurface.withOpacity(0.7),
-                        ),
-                      ),
-                    ),
-                  );
-                }
-
-                final classes = snapshot.data!;
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Select Classes (optional)',
-                      style: Theme.of(context).textTheme.titleSmall,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Leave empty to send to all classes',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Theme.of(
-                          context,
-                        ).colorScheme.onSurface.withOpacity(0.6),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    ...classes.map(
-                      (classModel) => CheckboxListTile(
-                        title: Text(classModel.name),
-                        value: _selectedClassIds.contains(classModel.id),
-                        onChanged: (value) {
-                          setState(() {
-                            if (value == true) {
-                              _selectedClassIds.add(classModel.id);
-                            } else {
-                              _selectedClassIds.remove(classModel.id);
-                            }
-                          });
-                        },
-                      ),
-                    ),
-                  ],
-                );
-              },
-            ),
             const SizedBox(height: 16),
 
             // Publish Options
@@ -628,26 +674,23 @@ class __CreateAnnouncementFormState extends State<_CreateAnnouncementForm> {
               width: double.infinity,
               child: ElevatedButton(
                 onPressed: _isLoading ? null : _createAnnouncement,
-                child:
-                    _isLoading
-                        ? const Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            ),
-                            SizedBox(width: 12),
-                            Text('Creating...'),
-                          ],
-                        )
-                        : Text(
-                          _isPublished
-                              ? 'Publish Announcement'
-                              : 'Save as Draft',
-                        ),
+                child: _isLoading
+                    ? const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                    SizedBox(width: 12),
+                    Text('Creating...'),
+                  ],
+                )
+                    : Text(
+                  _isPublished ? 'Publish Announcement' : 'Save as Draft',
+                ),
               ),
             ),
           ],
@@ -656,42 +699,87 @@ class __CreateAnnouncementFormState extends State<_CreateAnnouncementForm> {
     );
   }
 
+  Widget _buildClassSelection() {
+    if (_isLoadingClasses) {
+      return const CircularProgressIndicator();
+    }
+
+    if (_classes.isEmpty) {
+      return Card(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Text(
+            'No classes available. This announcement will be sent to all students.',
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Select Classes (optional)',
+          style: Theme.of(context).textTheme.titleSmall,
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Leave empty to send to all classes',
+          style: TextStyle(
+            fontSize: 12,
+            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+          ),
+        ),
+        const SizedBox(height: 12),
+        ..._classes.map(
+              (classModel) => CheckboxListTile(
+            title: Text(classModel.name),
+            value: _selectedClassIds.contains(classModel.id),
+            onChanged: (value) {
+              setState(() {
+                if (value == true) {
+                  _selectedClassIds.add(classModel.id);
+                } else {
+                  _selectedClassIds.remove(classModel.id);
+                }
+              });
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
   Future<void> _createAnnouncement() async {
     if (!_formKey.currentState!.validate()) return;
 
-    setState(() {
-      _isLoading = true;
-    });
+    setState(() => _isLoading = true);
 
     try {
-      // Get the selected class to retrieve its division ID
+      final databaseService = Provider.of<DatabaseService>(context, listen: false);
+
       String? divisionId;
       if (_selectedClassIds.isNotEmpty) {
-        final classes =
-            await widget.databaseService
-                .getTeacherClasses(widget.teacher.uid)
-                .first;
-
-        if (classes.isNotEmpty) {
-          final selectedClass = classes.firstWhere(
-            (c) => c.id == _selectedClassIds.first,
-            orElse: () => throw Exception('Selected class not found'),
-          );
-          divisionId = selectedClass.divisionId;
-        }
+        final selectedClass = _classes.firstWhere(
+              (c) => c.id == _selectedClassIds.first,
+          orElse: () => throw Exception('Selected class not found'),
+        );
+        divisionId = selectedClass.divisionId;
       }
 
-      final result = await widget.databaseService.createAnnouncement(
+      final result = await databaseService.createAnnouncement(
         teacherId: widget.teacher.uid,
         title: _titleController.text.trim(),
         description: _contentController.text.trim(),
-        // classId: _selectedClassIds.isNotEmpty ? _selectedClassIds.first : '',
         institutionId: widget.teacher.institutionId,
         divisionId: divisionId ?? '',
       );
 
-      if (result == null) {
-        if (mounted) {
+      if (mounted) {
+        if (result == null) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
@@ -709,12 +797,8 @@ class __CreateAnnouncementFormState extends State<_CreateAnnouncementForm> {
             _selectedClassIds.clear();
             _isPublished = true;
           });
-        }
-      } else {
-        if (mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text(result)));
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(result)));
         }
       }
     } catch (e) {
@@ -725,9 +809,7 @@ class __CreateAnnouncementFormState extends State<_CreateAnnouncementForm> {
       }
     } finally {
       if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
+        setState(() => _isLoading = false);
       }
     }
   }

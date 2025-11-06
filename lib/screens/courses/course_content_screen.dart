@@ -29,27 +29,43 @@ class CourseContentScreen extends StatefulWidget {
 class _CourseContentScreenState extends State<CourseContentScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  String? _selectedClassId;
-  final TextEditingController _searchController = TextEditingController();
-  String _searchQuery = '';
+  TeacherModel? _cachedTeacher;
+  bool _isLoadingTeacher = true;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _loadTeacherData();
   }
 
   @override
   void dispose() {
     _tabController.dispose();
-    _searchController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadTeacherData() async {
+    final authService = Provider.of<AuthService>(context, listen: false);
+    final databaseService = Provider.of<DatabaseService>(context, listen: false);
+
+    try {
+      final teacher = await databaseService.getTeacher(authService.currentUser!.uid);
+      if (mounted) {
+        setState(() {
+          _cachedTeacher = teacher;
+          _isLoadingTeacher = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoadingTeacher = false);
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final authService = Provider.of<AuthService>(context);
-    final databaseService = Provider.of<DatabaseService>(context);
     final isTablet = ResponsiveHelper.isTablet(context);
 
     return Scaffold(
@@ -64,35 +80,75 @@ class _CourseContentScreenState extends State<CourseContentScreen>
           ],
         ),
       ),
-      body: FutureBuilder<TeacherModel?>(
-        future: databaseService.getTeacher(authService.currentUser!.uid),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          if (!snapshot.hasData) {
-            return const Center(child: Text('Teacher data not found'));
-          }
-
-          final teacher = snapshot.data!;
-          return TabBarView(
-            controller: _tabController,
-            children: [
-              _buildCoursesTab(teacher, databaseService, isTablet),
-              _buildCreateCourseTab(teacher, databaseService, isTablet),
-            ],
-          );
-        },
-      ),
+      body: _buildBody(isTablet),
     );
   }
 
-  Widget _buildCoursesTab(
-    TeacherModel teacher,
-    DatabaseService databaseService,
-    bool isTablet,
-  ) {
+  Widget _buildBody(bool isTablet) {
+    if (_isLoadingTeacher) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_cachedTeacher == null) {
+      return const Center(child: Text('Teacher data not found'));
+    }
+
+    return TabBarView(
+      controller: _tabController,
+      children: [
+        _CoursesListTab(teacher: _cachedTeacher!),
+        _CreateCourseTab(teacher: _cachedTeacher!, isTablet: isTablet),
+      ],
+    );
+  }
+}
+
+class _CoursesListTab extends StatefulWidget {
+  final TeacherModel teacher;
+
+  const _CoursesListTab({required this.teacher});
+
+  @override
+  State<_CoursesListTab> createState() => _CoursesListTabState();
+}
+
+class _CoursesListTabState extends State<_CoursesListTab>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    return _CoursesListContent(teacher: widget.teacher);
+  }
+}
+
+class _CoursesListContent extends StatefulWidget {
+  final TeacherModel teacher;
+
+  const _CoursesListContent({required this.teacher});
+
+  @override
+  State<_CoursesListContent> createState() => _CoursesListContentState();
+}
+
+class _CoursesListContentState extends State<_CoursesListContent> {
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+  String? _selectedClassId;
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isTablet = ResponsiveHelper.isTablet(context);
+    final databaseService = Provider.of<DatabaseService>(context);
+
     return Column(
       children: [
         // Search and Filter Bar
@@ -112,21 +168,21 @@ class _CourseContentScreenState extends State<CourseContentScreen>
                   prefixIcon: const Icon(Icons.search),
                   suffixIcon: _searchQuery.isNotEmpty
                       ? IconButton(
-                          icon: const Icon(Icons.clear),
-                          onPressed: () {
-                            _searchController.clear();
-                            setState(() {
-                              _searchQuery = '';
-                            });
-                          },
-                        )
+                    icon: const Icon(Icons.clear),
+                    onPressed: () {
+                      _searchController.clear();
+                      setState(() {
+                        _searchQuery = '';
+                      });
+                    },
+                  )
                       : null,
                 ),
               ),
               const SizedBox(height: 16),
               // Class Filter
               StreamBuilder<List<ClassModel>>(
-                stream: databaseService.getTeacherClasses(teacher.uid),
+                stream: databaseService.getTeacherClasses(widget.teacher.uid),
                 builder: (context, classSnapshot) {
                   if (!classSnapshot.hasData) {
                     return const SizedBox();
@@ -145,7 +201,7 @@ class _CourseContentScreenState extends State<CourseContentScreen>
                         child: Text('All Classes'),
                       ),
                       ...classes.map(
-                        (classModel) => DropdownMenuItem(
+                            (classModel) => DropdownMenuItem(
                           value: classModel.id,
                           child: Text(classModel.name),
                         ),
@@ -164,99 +220,177 @@ class _CourseContentScreenState extends State<CourseContentScreen>
         ),
         // Courses List
         Expanded(
-          child: StreamBuilder<List<CourseModel>>(
-            stream: databaseService.getTeacherCourses(teacher.uid),
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator());
-              }
-
-              if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                return Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.book_outlined,
-                        size: 64,
-                        color: Theme.of(
-                          context,
-                        ).colorScheme.onSurface.withOpacity(0.5),
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'No courses found',
-                        style: TextStyle(
-                          fontSize: 18,
-                          color: Theme.of(
-                            context,
-                          ).colorScheme.onSurface.withOpacity(0.7),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Create your first course to get started',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Theme.of(
-                            context,
-                          ).colorScheme.onSurface.withOpacity(0.5),
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              }
-
-              var courses = snapshot.data!;
-
-              // Apply filters
-              if (_selectedClassId != null) {
-                courses = courses
-                    .where((course) => course.classId == _selectedClassId)
-                    .toList();
-              }
-
-              if (_searchQuery.isNotEmpty) {
-                courses = courses.where((course) {
-                  return course.title.toLowerCase().contains(
-                            _searchQuery,
-                          ) ||
-                      course.description.toLowerCase().contains(
-                            _searchQuery,
-                          );
-                }).toList();
-              }
-
-              return RefreshIndicator(
-                onRefresh: () async {
-                  setState(() {});
-                },
-                child: ListView.builder(
-                  padding: EdgeInsets.all(isTablet ? 20 : 16),
-                  itemCount: courses.length,
-                  itemBuilder: (context, index) {
-                    final course = courses[index];
-                    return _buildCourseCard(course, databaseService, isTablet);
-                  },
-                ),
-              );
-            },
+          child: _CoursesList(
+            teacher: widget.teacher,
+            searchQuery: _searchQuery,
+            selectedClassId: _selectedClassId,
           ),
         ),
       ],
     );
   }
+}
 
-  Widget _buildCourseCard(
-    CourseModel course,
-    DatabaseService databaseService,
-    bool isTablet,
-  ) {
+class _CoursesList extends StatefulWidget {
+  final TeacherModel teacher;
+  final String searchQuery;
+  final String? selectedClassId;
+
+  const _CoursesList({
+    required this.teacher,
+    required this.searchQuery,
+    required this.selectedClassId,
+  });
+
+  @override
+  State<_CoursesList> createState() => _CoursesListState();
+}
+
+class _CoursesListState extends State<_CoursesList> {
+  List<CourseModel> _courses = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCourses();
+  }
+
+  Future<void> _loadCourses() async {
+    final databaseService = Provider.of<DatabaseService>(context, listen: false);
+
+    try {
+      final courses = await databaseService.getTeacherCourses(widget.teacher.uid).first;
+      if (mounted) {
+        setState(() {
+          _courses = courses;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    var courses = _courses;
+
+    // Apply filters
+    if (widget.selectedClassId != null) {
+      courses = courses
+          .where((course) => course.classId == widget.selectedClassId)
+          .toList();
+    }
+
+    if (widget.searchQuery.isNotEmpty) {
+      courses = courses.where((course) {
+        return course.title.toLowerCase().contains(widget.searchQuery) ||
+            course.description.toLowerCase().contains(widget.searchQuery);
+      }).toList();
+    }
+
+    if (courses.isEmpty) {
+      return _EmptyCoursesState(
+        searchQuery: widget.searchQuery,
+        hasSelectedClass: widget.selectedClassId != null,
+      );
+    }
+
+    final isTablet = ResponsiveHelper.isTablet(context);
+    final databaseService = Provider.of<DatabaseService>(context);
+
+    return RefreshIndicator(
+      onRefresh: _loadCourses,
+      child: ListView.builder(
+        padding: EdgeInsets.all(isTablet ? 20 : 16),
+        itemCount: courses.length,
+        itemBuilder: (context, index) => _CourseCard(
+          course: courses[index],
+          databaseService: databaseService,
+        ),
+      ),
+    );
+  }
+}
+
+class _EmptyCoursesState extends StatelessWidget {
+  final String searchQuery;
+  final bool hasSelectedClass;
+
+  const _EmptyCoursesState({
+    required this.searchQuery,
+    required this.hasSelectedClass,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.book_outlined,
+            size: 64,
+            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            _getEmptyStateTitle(),
+            style: TextStyle(
+              fontSize: 18,
+              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            _getEmptyStateSubtitle(),
+            style: TextStyle(
+              fontSize: 14,
+              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _getEmptyStateTitle() {
+    if (searchQuery.isNotEmpty) return 'No matching courses';
+    if (hasSelectedClass) return 'No courses for selected class';
+    return 'No courses found';
+  }
+
+  String _getEmptyStateSubtitle() {
+    if (searchQuery.isNotEmpty) return 'Try a different search term';
+    if (hasSelectedClass) return 'Create a course for this class';
+    return 'Create your first course to get started';
+  }
+}
+
+class _CourseCard extends StatelessWidget {
+  final CourseModel course;
+  final DatabaseService databaseService;
+
+  const _CourseCard({
+    required this.course,
+    required this.databaseService,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isTablet = ResponsiveHelper.isTablet(context);
+
     return Card(
       margin: EdgeInsets.only(bottom: isTablet ? 16 : 12),
       child: InkWell(
-        onTap: () => _showCourseDetails(course, databaseService),
+        onTap: () => _showCourseDetails(context, course),
         borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: EdgeInsets.all(isTablet ? 20 : 16),
@@ -284,9 +418,7 @@ class _CourseContentScreenState extends State<CourseContentScreen>
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             fontSize: isTablet ? 14 : 12,
-                            color: Theme.of(
-                              context,
-                            ).colorScheme.onSurface.withOpacity(0.7),
+                            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
                           ),
                         ),
                       ],
@@ -322,11 +454,10 @@ class _CourseContentScreenState extends State<CourseContentScreen>
                     onSelected: (value) {
                       switch (value) {
                         case 'edit':
-                          _editCourse(course, databaseService);
+                          _editCourse(context, course);
                           break;
-
                         case 'delete':
-                          _deleteCourse(course, databaseService);
+                          _deleteCourse(context, course);
                           break;
                       }
                     },
@@ -360,9 +491,7 @@ class _CourseContentScreenState extends State<CourseContentScreen>
                     'Created: ${DateFormat('MMM dd, yyyy').format(course.createdAt)}',
                     style: TextStyle(
                       fontSize: 12,
-                      color: Theme.of(
-                        context,
-                      ).colorScheme.onSurface.withOpacity(0.5),
+                      color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
                     ),
                   ),
                 ],
@@ -374,19 +503,7 @@ class _CourseContentScreenState extends State<CourseContentScreen>
     );
   }
 
-  Widget _buildCreateCourseTab(
-    TeacherModel teacher,
-    DatabaseService databaseService,
-    bool isTablet,
-  ) {
-    return _CreateCourseForm(
-      teacher: teacher,
-      databaseService: databaseService,
-      isTablet: isTablet,
-    );
-  }
-
-  void _showCourseDetails(CourseModel course, DatabaseService databaseService) {
+  void _showCourseDetails(BuildContext context, CourseModel course) {
     showDialog(
       context: context,
       builder: (context) => Dialog(
@@ -425,27 +542,14 @@ class _CourseContentScreenState extends State<CourseContentScreen>
                       ),
                       const SizedBox(height: 12),
                       StreamBuilder<List<CourseMaterial>>(
-                        stream: databaseService.getCourseMaterials(
-                          course.id,
-                        ),
+                        stream: databaseService.getCourseMaterials(course.id),
                         builder: (context, snapshot) {
-                          print(
-                            'Snapshot connection state: ${snapshot.connectionState}',
-                          );
-                          print('Snapshot has data: ${snapshot.hasData}');
-                          if (snapshot.connectionState ==
-                              ConnectionState.waiting) {
+                          if (snapshot.connectionState == ConnectionState.waiting) {
                             return const CircularProgressIndicator();
                           }
 
                           final materials = snapshot.data ?? [];
-                          print(
-                            'Number of materials fetched: ${materials.length}',
-                          );
                           if (materials.isEmpty) {
-                            print(
-                              'No materials found for course: ${course.id}',
-                            );
                             return const Text('No materials available');
                           }
 
@@ -453,23 +557,17 @@ class _CourseContentScreenState extends State<CourseContentScreen>
                             children: materials
                                 .map(
                                   (material) => ListTile(
-                                    leading: Icon(
-                                      _getMaterialIcon(material.type),
-                                    ),
-                                    title: Text(material.title),
-                                    subtitle: material.description != null
-                                        ? Text(
-                                            material.description!,
-                                          )
-                                        : null,
-                                    trailing: Text(
-                                      DateFormat(
-                                        'MMM dd',
-                                      ).format(material.uploadedAt),
-                                    ),
-                                    onTap: () => _openMaterial(material),
-                                  ),
-                                )
+                                leading: Icon(_getMaterialIcon(material.type)),
+                                title: Text(material.title),
+                                subtitle: material.description != null
+                                    ? Text(material.description!)
+                                    : null,
+                                trailing: Text(
+                                  DateFormat('MMM dd').format(material.uploadedAt),
+                                ),
+                                onTap: () => _openMaterial(context, material),
+                              ),
+                            )
                                 .toList(),
                           );
                         },
@@ -485,21 +583,69 @@ class _CourseContentScreenState extends State<CourseContentScreen>
     );
   }
 
-  void _openMaterial(CourseMaterial material) {
+  void _editCourse(BuildContext context, CourseModel course) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => CourseCreateScreen(course: course)),
+    );
+  }
+
+  void _deleteCourse(BuildContext context, CourseModel course) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Course'),
+        content: Text('Are you sure you want to delete "${course.title}"? This action cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              final error = await databaseService.deleteCourse(course.id);
+              if (error != null && context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Error: $error'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              } else if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Course deleted successfully!'),
+                    backgroundColor: Colors.green,
+                  ),
+                );
+              }
+            },
+            child: const Text(
+              'Delete',
+              style: TextStyle(color: Colors.red),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _openMaterial(BuildContext context, CourseMaterial material) {
     if (material.type == 'video' && material.url != null) {
-      _openGoogleDriveLink(material.url!);
+      _openGoogleDriveLink(context, material.url!);
     } else if (material.type == 'pdf' && material.hasFileData) {
-      _openPdfFromBase64(material);
+      _openPdfFromBase64(context, material);
     } else if (material.type == 'image' && material.hasFileData) {
-      _showImageFromBase64(material);
+      _showImageFromBase64(context, material);
     } else if (material.type == 'link' && material.url != null) {
-      _openExternalLink(material.url!);
+      _openExternalLink(context, material.url!);
     } else if (material.type == 'note' && material.url != null) {
-      _showNoteDialog(material.url!);
+      _showNoteDialog(context, material.url!);
     }
   }
 
-  void _openPdfFromBase64(CourseMaterial material) {
+  void _openPdfFromBase64(BuildContext context, CourseMaterial material) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text('Opening PDF: ${material.fileName}'),
@@ -508,7 +654,7 @@ class _CourseContentScreenState extends State<CourseContentScreen>
     );
   }
 
-  void _showImageFromBase64(CourseMaterial material) {
+  void _showImageFromBase64(BuildContext context, CourseMaterial material) {
     showDialog(
       context: context,
       builder: (context) => Dialog(
@@ -534,7 +680,7 @@ class _CourseContentScreenState extends State<CourseContentScreen>
     );
   }
 
-  void _showNoteDialog(String noteContent) {
+  void _showNoteDialog(BuildContext context, String noteContent) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -550,8 +696,7 @@ class _CourseContentScreenState extends State<CourseContentScreen>
     );
   }
 
-  Future<void> _openGoogleDriveLink(String url) async {
-    // Show confirmation dialog first
+  Future<void> _openGoogleDriveLink(BuildContext context, String url) async {
     final shouldOpen = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -561,10 +706,7 @@ class _CourseContentScreenState extends State<CourseContentScreen>
           children: [
             const Icon(Icons.video_library, size: 48, color: Colors.blue),
             const SizedBox(height: 16),
-            const Text(
-              'This will open the video in Google Drive.',
-              textAlign: TextAlign.center,
-            ),
+            const Text('This will open the video in Google Drive.', textAlign: TextAlign.center),
             const SizedBox(height: 8),
             Text(
               'Make sure you have the Google Drive app installed for the best experience.',
@@ -589,137 +731,76 @@ class _CourseContentScreenState extends State<CourseContentScreen>
     if (shouldOpen == true) {
       try {
         final uri = Uri.parse(url);
-
         if (await canLaunchUrl(uri)) {
           await launchUrl(uri, mode: LaunchMode.externalApplication);
         } else {
-          // Fallback: Try to open in browser if direct launch fails
-          if (await canLaunchUrl(uri)) {
-            await launchUrl(uri);
-          } else {
-            throw Exception('Could not launch $url');
-          }
+          throw Exception('Could not launch $url');
         }
       } catch (e) {
-        print('Error opening Google Drive link: $e');
-
-        if (mounted) {
-          showDialog(
-            context: context,
-            builder: (context) => AlertDialog(
-              title: const Text('Cannot Open Link'),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(
-                    Icons.error_outline,
-                    size: 48,
-                    color: Colors.red,
-                  ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'Unable to open the Google Drive link.',
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'You can try copying the link and opening it manually:',
-                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 8),
-                  GestureDetector(
-                    onTap: () {
-                      Clipboard.setData(ClipboardData(text: url));
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Link copied to clipboard'),
-                          backgroundColor: Colors.green,
-                        ),
-                      );
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: Colors.grey[100],
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        url,
-                        style: const TextStyle(fontSize: 10),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('OK'),
-                ),
-              ],
-            ),
-          );
+        if (context.mounted) {
+          _showLinkErrorDialog(context, url);
         }
       }
     }
   }
 
-  void _openExternalLink(String url) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Opening: $url'), backgroundColor: Colors.blue),
-    );
-  }
-
-  void _editCourse(CourseModel course, DatabaseService databaseService) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => CourseCreateScreen(course: course)),
-    );
-  }
-
-  void _deleteCourse(CourseModel course, DatabaseService databaseService) {
+  void _showLinkErrorDialog(BuildContext context, String url) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Delete Course'),
-        content: Text(
-          'Are you sure you want to delete "${course.title}"? This action cannot be undone.',
+        title: const Text('Cannot Open Link'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.error_outline, size: 48, color: Colors.red),
+            const SizedBox(height: 16),
+            const Text('Unable to open the Google Drive link.', textAlign: TextAlign.center),
+            const SizedBox(height: 8),
+            Text(
+              'You can try copying the link and opening it manually:',
+              style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            GestureDetector(
+              onTap: () {
+                Clipboard.setData(ClipboardData(text: url));
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Link copied to clipboard'),
+                    backgroundColor: Colors.green,
+                  ),
+                );
+              },
+              child: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.grey[100],
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  url,
+                  style: const TextStyle(fontSize: 10),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ),
+          ],
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              final error = await databaseService.deleteCourse(course.id);
-              if (error != null && mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Error: $error'),
-                    backgroundColor: Colors.red,
-                  ),
-                );
-              } else if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Course deleted successfully!'),
-                    backgroundColor: Colors.green,
-                  ),
-                );
-              }
-            },
-            child: const Text(
-              'Delete',
-              style: TextStyle(color: Colors.red),
-            ),
+            child: const Text('OK'),
           ),
         ],
       ),
+    );
+  }
+
+  void _openExternalLink(BuildContext context, String url) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Opening: $url'), backgroundColor: Colors.blue),
     );
   }
 
@@ -741,14 +822,40 @@ class _CourseContentScreenState extends State<CourseContentScreen>
   }
 }
 
+class _CreateCourseTab extends StatefulWidget {
+  final TeacherModel teacher;
+  final bool isTablet;
+
+  const _CreateCourseTab({
+    required this.teacher,
+    required this.isTablet,
+  });
+
+  @override
+  State<_CreateCourseTab> createState() => _CreateCourseTabState();
+}
+
+class _CreateCourseTabState extends State<_CreateCourseTab>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    return _CreateCourseForm(
+      teacher: widget.teacher,
+      isTablet: widget.isTablet,
+    );
+  }
+}
+
 class _CreateCourseForm extends StatefulWidget {
   final TeacherModel teacher;
-  final DatabaseService databaseService;
   final bool isTablet;
 
   const _CreateCourseForm({
     required this.teacher,
-    required this.databaseService,
     required this.isTablet,
   });
 
@@ -763,12 +870,38 @@ class __CreateCourseFormState extends State<_CreateCourseForm> {
   String? _selectedClassId;
   bool _isLoading = false;
   List<CourseMaterial> _materials = [];
+  List<ClassModel> _classes = [];
+  bool _isLoadingClasses = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadClasses();
+  }
 
   @override
   void dispose() {
     _titleController.dispose();
     _descriptionController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadClasses() async {
+    final databaseService = Provider.of<DatabaseService>(context, listen: false);
+
+    try {
+      final classes = await databaseService.getTeacherClasses(widget.teacher.uid).first;
+      if (mounted) {
+        setState(() {
+          _classes = classes;
+          _isLoadingClasses = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoadingClasses = false);
+      }
+    }
   }
 
   void _addMaterial() {
@@ -784,9 +917,7 @@ class __CreateCourseFormState extends State<_CreateCourseForm> {
           });
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text(
-                'Material added - will be saved when course is created',
-              ),
+              content: Text('Material added - will be saved when course is created'),
               backgroundColor: Colors.blue,
             ),
           );
@@ -821,9 +952,7 @@ class __CreateCourseFormState extends State<_CreateCourseForm> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Delete Material'),
-        content: const Text(
-          'Are you sure you want to delete this material?',
-        ),
+        content: const Text('Are you sure you want to delete this material?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -860,17 +989,14 @@ class __CreateCourseFormState extends State<_CreateCourseForm> {
     });
 
     try {
-      // Get the selected class to retrieve its division ID
-      final classes = await widget.databaseService
-          .getTeacherClasses(widget.teacher.uid)
-          .first;
+      final databaseService = Provider.of<DatabaseService>(context, listen: false);
 
-      if (classes.isEmpty) {
+      if (_classes.isEmpty) {
         throw Exception('No classes available. Please create a class first.');
       }
 
-      final selectedClass = classes.firstWhere(
-        (c) => c.id == _selectedClassId,
+      final selectedClass = _classes.firstWhere(
+            (c) => c.id == _selectedClassId,
         orElse: () => throw Exception('Selected class not found'),
       );
 
@@ -887,7 +1013,7 @@ class __CreateCourseFormState extends State<_CreateCourseForm> {
       );
 
       // Create the course in the database
-      final courseError = await widget.databaseService.createCourse(course);
+      final courseError = await databaseService.createCourse(course);
       if (courseError != null) {
         throw Exception(courseError);
       }
@@ -908,13 +1034,9 @@ class __CreateCourseFormState extends State<_CreateCourseForm> {
           uploadedAt: material.uploadedAt,
         );
 
-        final materialError = await widget.databaseService.createCourseMaterial(
-          materialWithCourseId,
-        );
+        final materialError = await databaseService.createCourseMaterial(materialWithCourseId);
         if (materialError != null) {
-          print(
-            'Warning: Failed to save material ${material.title}: $materialError',
-          );
+          print('Warning: Failed to save material ${material.title}: $materialError');
         }
       }
 
@@ -934,9 +1056,7 @@ class __CreateCourseFormState extends State<_CreateCourseForm> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error creating course: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error creating course: $e')));
       }
     } finally {
       if (mounted) {
@@ -949,6 +1069,8 @@ class __CreateCourseFormState extends State<_CreateCourseForm> {
 
   @override
   Widget build(BuildContext context) {
+    final databaseService = Provider.of<DatabaseService>(context);
+
     return SingleChildScrollView(
       padding: EdgeInsets.all(widget.isTablet ? 24 : 16),
       child: Form(
@@ -1003,58 +1125,8 @@ class __CreateCourseFormState extends State<_CreateCourseForm> {
             const SizedBox(height: 16),
 
             // Class Selection
-            StreamBuilder<List<ClassModel>>(
-              stream: widget.databaseService.getTeacherClasses(
-                widget.teacher.uid,
-              ),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const CircularProgressIndicator();
-                }
+            _buildClassSelection(),
 
-                if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                  return Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Text(
-                        'No classes available. Please contact your administrator.',
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.error,
-                        ),
-                      ),
-                    ),
-                  );
-                }
-
-                final classes = snapshot.data!;
-                return DropdownButtonFormField<String>(
-                  value: _selectedClassId,
-                  decoration: const InputDecoration(
-                    labelText: 'Select Class',
-                    prefixIcon: Icon(Icons.class_),
-                  ),
-                  items: classes
-                      .map(
-                        (classModel) => DropdownMenuItem(
-                          value: classModel.id,
-                          child: Text(classModel.name),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: (value) {
-                    setState(() {
-                      _selectedClassId = value;
-                    });
-                  },
-                  validator: (value) {
-                    if (value == null) {
-                      return 'Please select a class';
-                    }
-                    return null;
-                  },
-                );
-              },
-            ),
             const SizedBox(height: 24),
 
             // Course Materials Section
@@ -1068,10 +1140,7 @@ class __CreateCourseFormState extends State<_CreateCourseForm> {
                       children: [
                         Text(
                           'Course Materials',
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleLarge
-                              ?.copyWith(fontWeight: FontWeight.bold),
+                          style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
                         ),
                         const Spacer(),
                         Text(
@@ -1119,9 +1188,7 @@ class __CreateCourseFormState extends State<_CreateCourseForm> {
                             margin: const EdgeInsets.only(bottom: 8),
                             child: ListTile(
                               leading: CircleAvatar(
-                                backgroundColor: _getMaterialColor(
-                                  material.type,
-                                ),
+                                backgroundColor: _getMaterialColor(material.type),
                                 child: Icon(
                                   _getMaterialIcon(material.type),
                                   color: Colors.white,
@@ -1152,11 +1219,7 @@ class __CreateCourseFormState extends State<_CreateCourseForm> {
                                     onPressed: () => _editMaterial(index),
                                   ),
                                   IconButton(
-                                    icon: const Icon(
-                                      Icons.delete,
-                                      size: 20,
-                                      color: Colors.red,
-                                    ),
+                                    icon: const Icon(Icons.delete, size: 20, color: Colors.red),
                                     onPressed: () => _deleteMaterial(index),
                                   ),
                                 ],
@@ -1188,24 +1251,71 @@ class __CreateCourseFormState extends State<_CreateCourseForm> {
                 onPressed: _isLoading ? null : _createCourse,
                 child: _isLoading
                     ? const Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          ),
-                          SizedBox(width: 12),
-                          Text('Creating...'),
-                        ],
-                      )
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                    SizedBox(width: 12),
+                    Text('Creating...'),
+                  ],
+                )
                     : const Text('Create Course'),
               ),
             ),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildClassSelection() {
+    if (_isLoadingClasses) {
+      return const CircularProgressIndicator();
+    }
+
+    if (_classes.isEmpty) {
+      return Card(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Text(
+            'No classes available. Please contact your administrator.',
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.error,
+            ),
+          ),
+        ),
+      );
+    }
+
+    return DropdownButtonFormField<String>(
+      value: _selectedClassId,
+      decoration: const InputDecoration(
+        labelText: 'Select Class',
+        prefixIcon: Icon(Icons.class_),
+      ),
+      items: _classes
+          .map(
+            (classModel) => DropdownMenuItem(
+          value: classModel.id,
+          child: Text(classModel.name),
+        ),
+      )
+          .toList(),
+      onChanged: (value) {
+        setState(() {
+          _selectedClassId = value;
+        });
+      },
+      validator: (value) {
+        if (value == null) {
+          return 'Please select a class';
+        }
+        return null;
+      },
     );
   }
 
@@ -1277,12 +1387,8 @@ class _MaterialDialogState extends State<_MaterialDialog> {
   void initState() {
     super.initState();
 
-    _titleController = TextEditingController(
-      text: widget.material?.title ?? '',
-    );
-    _descriptionController = TextEditingController(
-      text: widget.material?.description ?? '',
-    );
+    _titleController = TextEditingController(text: widget.material?.title ?? '');
+    _descriptionController = TextEditingController(text: widget.material?.description ?? '');
     _urlController = TextEditingController(text: widget.material?.url ?? '');
     _selectedType = widget.material?.type ?? 'pdf';
     _fileName = widget.material?.fileName;
@@ -1310,7 +1416,6 @@ class _MaterialDialogState extends State<_MaterialDialog> {
       if (result != null && result.files.isNotEmpty) {
         final platformFile = result.files.single;
 
-        // Always use bytes - it works on both web and mobile
         if (platformFile.bytes == null) {
           throw Exception('No file data available');
         }
@@ -1387,7 +1492,6 @@ class _MaterialDialogState extends State<_MaterialDialog> {
       if (image != null) {
         print('Image selected: ${image.name}');
 
-        // Use a different approach to read the file
         final bytes = await image.readAsBytes();
         final fileSizeInBytes = bytes.length;
         final fileSizeInMB = fileSizeInBytes / (1024 * 1024);
@@ -1462,8 +1566,7 @@ class _MaterialDialogState extends State<_MaterialDialog> {
     if (!_formKey.currentState!.validate()) return;
 
     // Validate file upload for image and PDF types
-    if ((_selectedType == 'pdf' || _selectedType == 'image') &&
-        _fileData == null) {
+    if ((_selectedType == 'pdf' || _selectedType == 'image') && _fileData == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Please upload a file first'),
@@ -1474,8 +1577,7 @@ class _MaterialDialogState extends State<_MaterialDialog> {
     }
 
     // Validate URL for video and link types
-    if ((_selectedType == 'video' || _selectedType == 'link') &&
-        _urlController.text.trim().isEmpty) {
+    if ((_selectedType == 'video' || _selectedType == 'link') && _urlController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Please enter a URL'),
@@ -1500,13 +1602,9 @@ class _MaterialDialogState extends State<_MaterialDialog> {
       id: widget.material?.id ?? const Uuid().v4(),
       courseId: widget.courseId,
       title: _titleController.text.trim(),
-      description: _descriptionController.text.trim().isEmpty
-          ? null
-          : _descriptionController.text.trim(),
+      description: _descriptionController.text.trim().isEmpty ? null : _descriptionController.text.trim(),
       type: _selectedType,
-      url: _urlController.text.trim().isEmpty
-          ? null
-          : _urlController.text.trim(),
+      url: _urlController.text.trim().isEmpty ? null : _urlController.text.trim(),
       fileData: _fileData,
       fileName: _fileName,
       fileSize: _fileSize,
@@ -1544,21 +1642,18 @@ class _MaterialDialogState extends State<_MaterialDialog> {
                     ),
                     DropdownMenuItem(value: 'pdf', child: Text('PDF Document')),
                     DropdownMenuItem(value: 'image', child: Text('Image')),
-                    DropdownMenuItem(
-                      value: 'link',
-                      child: Text('External Link'),
-                    ),
+                    DropdownMenuItem(value: 'link', child: Text('External Link')),
                     DropdownMenuItem(value: 'note', child: Text('Text Note')),
                   ],
                   onChanged: _isUploading
                       ? null
                       : (value) {
-                          setState(() {
-                            _selectedType = value!;
-                            _urlController.clear();
-                            _clearFile();
-                          });
-                        },
+                    setState(() {
+                      _selectedType = value!;
+                      _urlController.clear();
+                      _clearFile();
+                    });
+                  },
                   validator: (value) {
                     if (value == null || value.isEmpty) {
                       return 'Please select material type';
@@ -1653,9 +1748,7 @@ class _MaterialDialogState extends State<_MaterialDialog> {
                               children: [
                                 Text(
                                   _fileName ?? 'PDF File',
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                  ),
+                                  style: const TextStyle(fontWeight: FontWeight.bold),
                                 ),
                                 if (_fileSize != null)
                                   Text(
@@ -1724,9 +1817,7 @@ class _MaterialDialogState extends State<_MaterialDialog> {
                               children: [
                                 Text(
                                   _fileName ?? 'Image',
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                  ),
+                                  style: const TextStyle(fontWeight: FontWeight.bold),
                                 ),
                                 if (_fileSize != null)
                                   Text(
