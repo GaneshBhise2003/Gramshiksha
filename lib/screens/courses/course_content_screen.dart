@@ -1299,6 +1299,78 @@ class _MaterialDialogState extends State<_MaterialDialog> {
     super.dispose();
   }
 
+  // Future<void> _pickPDF() async {
+  //   try {
+  //     final FilePickerResult? result = await FilePicker.platform.pickFiles(
+  //       type: FileType.custom,
+  //       allowedExtensions: ['pdf'],
+  //       allowMultiple: false,
+  //     );
+
+  //     if (result != null && result.files.isNotEmpty) {
+  //       final platformFile = result.files.single;
+
+  //       // Always use bytes - it works on both web and mobile
+  //       if (platformFile.bytes == null) {
+  //         throw Exception('No file data available');
+  //       }
+
+  //       final fileBytes = platformFile.bytes!;
+  //       final fileSizeInBytes = fileBytes.length;
+  //       final fileSizeInMB = fileSizeInBytes / (1024 * 1024);
+
+  //       // Validate file size (max 10MB)
+  //       if (fileSizeInMB > 10) {
+  //         if (mounted) {
+  //           ScaffoldMessenger.of(context).showSnackBar(
+  //             const SnackBar(
+  //               content: Text('File size must be less than 10MB'),
+  //               backgroundColor: Colors.red,
+  //             ),
+  //           );
+  //         }
+  //         return;
+  //       }
+
+  //       setState(() {
+  //         _isUploading = true;
+  //       });
+
+  //       // Convert file to base64
+  //       final base64String = base64Encode(fileBytes);
+
+  //       setState(() {
+  //         _isUploading = false;
+  //         _fileData = base64String;
+  //         _fileName = platformFile.name;
+  //         _fileSize = fileSizeInBytes / 1024; // Convert to KB
+  //         _fileExtension = 'pdf';
+  //       });
+
+  //       if (mounted) {
+  //         ScaffoldMessenger.of(context).showSnackBar(
+  //           const SnackBar(
+  //             content: Text('PDF selected successfully!'),
+  //             backgroundColor: Colors.green,
+  //           ),
+  //         );
+  //       }
+  //     }
+  //   } catch (e) {
+  //     print('Error picking PDF: $e');
+  //     setState(() {
+  //       _isUploading = false;
+  //     });
+  //     if (mounted) {
+  //       ScaffoldMessenger.of(context).showSnackBar(
+  //         SnackBar(
+  //           content: Text('Error picking PDF: ${e.toString()}'),
+  //           backgroundColor: Colors.red,
+  //         ),
+  //       );
+  //     }
+  //   }
+  // }
   Future<void> _pickPDF() async {
     try {
       final FilePickerResult? result = await FilePicker.platform.pickFiles(
@@ -1309,13 +1381,18 @@ class _MaterialDialogState extends State<_MaterialDialog> {
 
       if (result != null && result.files.isNotEmpty) {
         final platformFile = result.files.single;
+        Uint8List fileBytes;
 
-        // Always use bytes - it works on both web and mobile
-        if (platformFile.bytes == null) {
-          throw Exception('No file data available');
+        // Try multiple approaches to get file data
+        if (platformFile.bytes != null) {
+          fileBytes = platformFile.bytes!;
+        } else if (platformFile.path != null) {
+          final file = File(platformFile.path!);
+          fileBytes = await file.readAsBytes();
+        } else {
+          throw Exception('No file data or path available');
         }
 
-        final fileBytes = platformFile.bytes!;
         final fileSizeInBytes = fileBytes.length;
         final fileSizeInMB = fileSizeInBytes / (1024 * 1024);
 
@@ -1343,7 +1420,7 @@ class _MaterialDialogState extends State<_MaterialDialog> {
           _isUploading = false;
           _fileData = base64String;
           _fileName = platformFile.name;
-          _fileSize = fileSizeInBytes / 1024; // Convert to KB
+          _fileSize = fileSizeInBytes / 1024;
           _fileExtension = 'pdf';
         });
 
