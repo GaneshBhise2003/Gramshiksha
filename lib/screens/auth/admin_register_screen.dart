@@ -40,10 +40,9 @@ class _AdminRegisterScreenState extends State<AdminRegisterScreen> {
       email: _emailController.text.trim(),
       password: _passwordController.text,
       name: _nameController.text.trim(),
-      phone:
-          _phoneController.text.trim().isEmpty
-              ? null
-              : _phoneController.text.trim(),
+      phone: _phoneController.text.trim().isEmpty
+          ? null
+          : _phoneController.text.trim(),
     );
 
     setState(() => _isLoading = false);
@@ -92,7 +91,9 @@ class _AdminRegisterScreenState extends State<AdminRegisterScreen> {
                         const SizedBox(height: 8),
                         Text(
                           'Administrator Account',
-                          style: Theme.of(context).textTheme.titleLarge
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleLarge
                               ?.copyWith(fontWeight: FontWeight.bold),
                         ),
                         const SizedBox(height: 8),
@@ -199,9 +200,8 @@ class _AdminRegisterScreenState extends State<AdminRegisterScreen> {
                       ),
                       onPressed: () {
                         setState(
-                          () =>
-                              _obscureConfirmPassword =
-                                  !_obscureConfirmPassword,
+                          () => _obscureConfirmPassword =
+                              !_obscureConfirmPassword,
                         );
                       },
                     ),
@@ -223,12 +223,11 @@ class _AdminRegisterScreenState extends State<AdminRegisterScreen> {
                   height: 50,
                   child: ElevatedButton(
                     onPressed: _isLoading ? null : _register,
-                    child:
-                        _isLoading
-                            ? const CircularProgressIndicator(
-                              color: Colors.white,
-                            )
-                            : const Text('Create Admin Account'),
+                    child: _isLoading
+                        ? const CircularProgressIndicator(
+                            color: Colors.white,
+                          )
+                        : const Text('Create Admin Account'),
                   ),
                 ),
                 const SizedBox(height: 16),

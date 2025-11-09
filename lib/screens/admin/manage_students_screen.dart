@@ -81,11 +81,11 @@ class _ManageStudentsScreenState extends State<ManageStudentsScreen> {
         context,
         listen: false,
       );
-      final grades = await databaseService
-          .getGradesByInstitutionAndAcademicYear(
-            widget.institutionId,
-            _selectedAcademicYearId!,
-          );
+      final grades =
+          await databaseService.getGradesByInstitutionAndAcademicYear(
+        widget.institutionId,
+        _selectedAcademicYearId!,
+      );
       setState(() {
         _grades = grades;
         _selectedGradeId = null;
@@ -112,10 +112,10 @@ class _ManageStudentsScreenState extends State<ManageStudentsScreen> {
       );
       final divisions = await databaseService
           .getDivisionsByInstitutionAndAcademicYearAndGrade(
-            widget.institutionId,
-            _selectedAcademicYearId!,
-            _selectedGradeId!,
-          );
+        widget.institutionId,
+        _selectedAcademicYearId!,
+        _selectedGradeId!,
+      );
       setState(() {
         _divisions = divisions;
         _selectedDivisionId = null;
@@ -134,24 +134,21 @@ class _ManageStudentsScreenState extends State<ManageStudentsScreen> {
     List<StudentModel> filtered = _students;
 
     if (_selectedAcademicYearId != null) {
-      filtered =
-          filtered
-              .where(
-                (student) => student.academicYearId == _selectedAcademicYearId,
-              )
-              .toList();
+      filtered = filtered
+          .where(
+            (student) => student.academicYearId == _selectedAcademicYearId,
+          )
+          .toList();
     }
     if (_selectedGradeId != null) {
-      filtered =
-          filtered
-              .where((student) => student.gradeId == _selectedGradeId)
-              .toList();
+      filtered = filtered
+          .where((student) => student.gradeId == _selectedGradeId)
+          .toList();
     }
     if (_selectedDivisionId != null) {
-      filtered =
-          filtered
-              .where((student) => student.divisionId == _selectedDivisionId)
-              .toList();
+      filtered = filtered
+          .where((student) => student.divisionId == _selectedDivisionId)
+          .toList();
     }
 
     setState(() {
@@ -184,370 +181,427 @@ class _ManageStudentsScreenState extends State<ManageStudentsScreen> {
         context,
         listen: false,
       );
-      dialogGrades = await databaseService
-          .getGradesByInstitutionAndAcademicYear(
-            widget.institutionId,
-            dialogAcademicYearId,
-          );
+      dialogGrades =
+          await databaseService.getGradesByInstitutionAndAcademicYear(
+        widget.institutionId,
+        dialogAcademicYearId,
+      );
       if (dialogGradeId != null) {
         dialogDivisions = await databaseService
             .getDivisionsByInstitutionAndAcademicYearAndGrade(
-              widget.institutionId,
-              dialogAcademicYearId,
-              dialogGradeId,
-            );
+          widget.institutionId,
+          dialogAcademicYearId,
+          dialogGradeId,
+        );
       }
     }
 
     await showDialog(
       context: context,
-      builder:
-          (context) => AlertDialog(
-            title: Text(student == null ? 'Create Student' : 'Edit Student'),
-            content: StatefulBuilder(
-              builder:
-                  (context, setDialogState) => SingleChildScrollView(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        TextField(
-                          controller: nameController,
-                          decoration: const InputDecoration(
-                            labelText: 'Full Name',
-                            hintText: 'Enter student name',
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        TextField(
-                          controller: emailController,
-                          decoration: const InputDecoration(
-                            labelText: 'Email',
-                            hintText: 'student@example.com',
-                          ),
-                          keyboardType: TextInputType.emailAddress,
-                          enabled:
-                              student ==
-                              null, // Don't allow email change for existing students
-                        ),
-                        if (student == null) ...[
-                          const SizedBox(height: 16),
-                          TextField(
-                            controller: passwordController,
-                            decoration: const InputDecoration(
-                              labelText: 'Password',
-                              hintText: 'Minimum 6 characters',
-                            ),
-                            obscureText: true,
-                          ),
-                        ],
-                        const SizedBox(height: 16),
-                        TextField(
-                          controller: rollNumberController,
-                          decoration: const InputDecoration(
-                            labelText: 'Roll Number',
-                            hintText: 'e.g., 2024001',
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        TextField(
-                          controller: phoneController,
-                          decoration: const InputDecoration(
-                            labelText: 'Phone (Optional)',
-                            hintText: '+1234567890',
-                          ),
-                          keyboardType: TextInputType.phone,
-                        ),
-                        const SizedBox(height: 16),
-                        TextField(
-                          controller: parentEmailController,
-                          decoration: const InputDecoration(
-                            labelText: 'Parent Email (Optional)',
-                            hintText: 'parent@example.com',
-                          ),
-                          keyboardType: TextInputType.emailAddress,
-                        ),
-                        const SizedBox(height: 16),
+      builder: (context) => AlertDialog(
+        title: Text(student == null ? 'Create Student' : 'Edit Student'),
+        content: StatefulBuilder(
+          builder: (context, setDialogState) => SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: nameController,
+                  decoration: const InputDecoration(
+                    labelText: 'Full Name',
+                    hintText: 'Enter student name',
+                  ),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: emailController,
+                  decoration: const InputDecoration(
+                    labelText: 'Email',
+                    hintText: 'student@example.com',
+                  ),
+                  keyboardType: TextInputType.emailAddress,
+                  enabled: student ==
+                      null, // Don't allow email change for existing students
+                ),
+                if (student == null) ...[
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: passwordController,
+                    decoration: const InputDecoration(
+                      labelText: 'Password',
+                      hintText: 'Minimum 6 characters',
+                    ),
+                    obscureText: true,
+                  ),
+                ],
+                const SizedBox(height: 16),
+                TextField(
+                  controller: rollNumberController,
+                  decoration: const InputDecoration(
+                    labelText: 'Roll Number',
+                    hintText: 'e.g., 2024001',
+                  ),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: phoneController,
+                  decoration: const InputDecoration(
+                    labelText: 'Phone (Optional)',
+                    hintText: '+1234567890',
+                  ),
+                  keyboardType: TextInputType.phone,
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: parentEmailController,
+                  decoration: const InputDecoration(
+                    labelText: 'Parent Email (Optional)',
+                    hintText: 'parent@example.com',
+                  ),
+                  keyboardType: TextInputType.emailAddress,
+                ),
+                const SizedBox(height: 16),
 
-                        // Academic Year Selection
-                        DropdownButtonFormField<String>(
-                          value: dialogAcademicYearId,
-                          decoration: const InputDecoration(
-                            labelText: 'Academic Year',
-                            border: OutlineInputBorder(),
-                          ),
-                          hint: const Text('Select Academic Year'),
-                          items:
-                              _academicYears.map((academicYear) {
-                                return DropdownMenuItem(
-                                  value: academicYear.id,
-                                  child: Text(academicYear.name),
-                                );
-                              }).toList(),
-                          onChanged: (value) async {
-                            setDialogState(() {
-                              dialogAcademicYearId = value;
-                              dialogGradeId = null;
-                              dialogDivisionId = null;
-                              dialogGrades.clear();
-                              dialogDivisions.clear();
-                            });
+                // Academic Year Selection
+                DropdownButtonFormField<String>(
+                  value: dialogAcademicYearId,
+                  decoration: const InputDecoration(
+                    labelText: 'Academic Year',
+                    border: OutlineInputBorder(),
+                  ),
+                  hint: const Text('Select Academic Year'),
+                  items: _academicYears.map((academicYear) {
+                    return DropdownMenuItem(
+                      value: academicYear.id,
+                      child: Text(academicYear.name),
+                    );
+                  }).toList(),
+                  onChanged: (value) async {
+                    setDialogState(() {
+                      dialogAcademicYearId = value;
+                      dialogGradeId = null;
+                      dialogDivisionId = null;
+                      dialogGrades.clear();
+                      dialogDivisions.clear();
+                    });
 
-                            if (value != null) {
-                              final databaseService =
-                                  Provider.of<DatabaseService>(
-                                    context,
-                                    listen: false,
-                                  );
-                              final grades = await databaseService
-                                  .getGradesByInstitutionAndAcademicYear(
-                                    widget.institutionId,
-                                    value,
-                                  );
-                              setDialogState(() {
-                                dialogGrades = grades;
-                              });
-                            }
-                          },
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Please select an academic year';
-                            }
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 16),
+                    if (value != null) {
+                      final databaseService = Provider.of<DatabaseService>(
+                        context,
+                        listen: false,
+                      );
+                      final grades = await databaseService
+                          .getGradesByInstitutionAndAcademicYear(
+                        widget.institutionId,
+                        value,
+                      );
+                      setDialogState(() {
+                        dialogGrades = grades;
+                      });
+                    }
+                  },
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Please select an academic year';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 16),
 
-                        // Grade Selection
-                        DropdownButtonFormField<String>(
-                          value: dialogGradeId,
-                          decoration: const InputDecoration(
-                            labelText: 'Class',
-                            border: OutlineInputBorder(),
-                          ),
-                          hint: const Text('Select Class'),
-                          items:
-                              dialogGrades.map((grade) {
-                                return DropdownMenuItem(
-                                  value: grade.id,
-                                  child: Text(grade.name),
-                                );
-                              }).toList(),
-                          onChanged: (value) async {
-                            setDialogState(() {
-                              dialogGradeId = value;
-                              dialogDivisionId = null;
-                              dialogDivisions.clear();
-                            });
+                // Grade Selection
+                DropdownButtonFormField<String>(
+                  value: dialogGradeId,
+                  decoration: const InputDecoration(
+                    labelText: 'Class',
+                    border: OutlineInputBorder(),
+                  ),
+                  hint: const Text('Select Class'),
+                  items: dialogGrades.map((grade) {
+                    return DropdownMenuItem(
+                      value: grade.id,
+                      child: Text(grade.name),
+                    );
+                  }).toList(),
+                  onChanged: (value) async {
+                    setDialogState(() {
+                      dialogGradeId = value;
+                      dialogDivisionId = null;
+                      dialogDivisions.clear();
+                    });
 
-                            if (value != null && dialogAcademicYearId != null) {
-                              final databaseService =
-                                  Provider.of<DatabaseService>(
-                                    context,
-                                    listen: false,
-                                  );
-                              final divisions = await databaseService
-                                  .getDivisionsByInstitutionAndAcademicYearAndGrade(
-                                    widget.institutionId,
-                                    dialogAcademicYearId!,
-                                    value,
-                                  );
-                              setDialogState(() {
-                                dialogDivisions = divisions;
-                              });
-                            }
-                          },
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Please select a grade';
-                            }
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 16),
+                    if (value != null && dialogAcademicYearId != null) {
+                      final databaseService = Provider.of<DatabaseService>(
+                        context,
+                        listen: false,
+                      );
+                      final divisions = await databaseService
+                          .getDivisionsByInstitutionAndAcademicYearAndGrade(
+                        widget.institutionId,
+                        dialogAcademicYearId!,
+                        value,
+                      );
+                      setDialogState(() {
+                        dialogDivisions = divisions;
+                      });
+                    }
+                  },
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Please select a grade';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 16),
 
-                        // Division Selection
-                        DropdownButtonFormField<String>(
-                          value: dialogDivisionId,
-                          decoration: const InputDecoration(
-                            labelText: 'Division (Class Section)',
-                            border: OutlineInputBorder(),
-                          ),
-                          hint: const Text(
-                            'Select Division (e.g., 10th A, 12th B)',
-                          ),
-                          items:
-                              dialogDivisions.map((division) {
-                                return DropdownMenuItem(
-                                  value: division.id,
-                                  child: Text(division.name),
-                                );
-                              }).toList(),
-                          onChanged: (value) {
-                            setDialogState(() {
-                              dialogDivisionId = value;
-                            });
-                          },
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Please select a division';
-                            }
-                            return null;
-                          },
-                        ),
-                      ],
+                // Division Selection
+                DropdownButtonFormField<String>(
+                  value: dialogDivisionId,
+                  decoration: const InputDecoration(
+                    labelText: 'Division (Class Section)',
+                    border: OutlineInputBorder(),
+                  ),
+                  hint: const Text(
+                    'Select Division (e.g., 10th A, 12th B)',
+                  ),
+                  items: dialogDivisions.map((division) {
+                    return DropdownMenuItem(
+                      value: division.id,
+                      child: Text(division.name),
+                    );
+                  }).toList(),
+                  onChanged: (value) {
+                    setDialogState(() {
+                      dialogDivisionId = value;
+                    });
+                  },
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Please select a division';
+                    }
+                    return null;
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () async {
+              // Validation
+              if (nameController.text.trim().isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text(
+                      'Please select academic year, grade, and division',
                     ),
                   ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Cancel'),
-              ),
-              FilledButton(
-                onPressed: () async {
-                  // Validation
-                  if (nameController.text.trim().isEmpty) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text(
-                          'Please select academic year, grade, and division',
-                        ),
-                      ),
-                    );
-                    return;
+                );
+                return;
+              }
+
+              if (emailController.text.trim().isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Please enter email')),
+                );
+                return;
+              }
+
+              if (student == null && passwordController.text.length < 6) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Password must be at least 6 characters'),
+                  ),
+                );
+                return;
+              }
+
+              if (rollNumberController.text.trim().isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Please enter roll number')),
+                );
+                return;
+              }
+
+              if (dialogDivisionId == null ||
+                  dialogAcademicYearId == null ||
+                  dialogGradeId == null) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Please select a division')),
+                );
+                return;
+              }
+
+              try {
+                final authService = Provider.of<AuthService>(
+                  context,
+                  listen: false,
+                );
+                final databaseService = Provider.of<DatabaseService>(
+                  context,
+                  listen: false,
+                );
+
+                if (student == null) {
+                  // Create new student
+                  final result = await authService.createStudentAccount(
+                    email: emailController.text.trim(),
+                    password: passwordController.text,
+                    name: nameController.text.trim(),
+                    rollNumber: rollNumberController.text.trim(),
+                    institutionId: widget.institutionId,
+                    academicYearId: dialogAcademicYearId!,
+                    gradeId: dialogGradeId!,
+                    divisionId: dialogDivisionId!,
+                    phone: phoneController.text.trim().isEmpty
+                        ? null
+                        : phoneController.text.trim(),
+                    parentEmail: parentEmailController.text.trim().isEmpty
+                        ? null
+                        : parentEmailController.text.trim(),
+                  );
+
+                  if (!result['success']) {
+                    throw Exception(result['error']);
                   }
 
-                  if (emailController.text.trim().isEmpty) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Please enter email')),
-                    );
-                    return;
-                  }
-
-                  if (student == null && passwordController.text.length < 6) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Password must be at least 6 characters'),
-                      ),
-                    );
-                    return;
-                  }
-
-                  if (rollNumberController.text.trim().isEmpty) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Please enter roll number')),
-                    );
-                    return;
-                  }
-
-                  if (dialogDivisionId == null ||
-                      dialogAcademicYearId == null ||
-                      dialogGradeId == null) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Please select a division')),
-                    );
-                    return;
-                  }
-
-                  try {
-                    final authService = Provider.of<AuthService>(
-                      context,
-                      listen: false,
-                    );
-                    final databaseService = Provider.of<DatabaseService>(
-                      context,
-                      listen: false,
-                    );
-
-                    if (student == null) {
-                      // Create new student
-                      final result = await authService.createStudentAccount(
-                        email: emailController.text.trim(),
-                        password: passwordController.text,
-                        name: nameController.text.trim(),
-                        rollNumber: rollNumberController.text.trim(),
-                        institutionId: widget.institutionId,
-                        academicYearId: dialogAcademicYearId!,
-                        gradeId: dialogGradeId!,
-                        divisionId: dialogDivisionId!,
-                        phone:
-                            phoneController.text.trim().isEmpty
-                                ? null
-                                : phoneController.text.trim(),
-                        parentEmail:
-                            parentEmailController.text.trim().isEmpty
-                                ? null
-                                : parentEmailController.text.trim(),
-                      );
-
-                      if (!result['success']) {
-                        throw Exception(result['error']);
-                      }
-                    } else {
-                      // Update existing student
-                      final updatedStudent = student.copyWith(
-                        name: nameController.text.trim(),
-                        rollNumber: rollNumberController.text.trim(),
-                        academicYearId: dialogAcademicYearId!,
-                        gradeId: dialogGradeId!,
-                        divisionId: dialogDivisionId!,
-                        phone:
-                            phoneController.text.trim().isEmpty
-                                ? null
-                                : phoneController.text.trim(),
-                        parentEmail:
-                            parentEmailController.text.trim().isEmpty
-                                ? null
-                                : parentEmailController.text.trim(),
-                      );
-
-                      await databaseService.updateStudent(updatedStudent);
-                    }
-
+                  // Student created successfully, but admin was signed out
+                  if (result['studentCreated'] == true) {
                     Navigator.pop(context);
-                    _loadData();
 
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          student == null
-                              ? 'Student created successfully!'
-                              : 'Student updated successfully!',
+                    // Show success message and inform about re-authentication
+                    showDialog(
+                      context: context,
+                      barrierDismissible: false,
+                      builder: (context) => AlertDialog(
+                        title: Row(
+                          children: [
+                            Icon(Icons.check_circle, color: Colors.green),
+                            SizedBox(width: 8),
+                            Text('Success!'),
+                          ],
                         ),
+                        content: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Student "${nameController.text.trim()}" has been created successfully!',
+                              style: TextStyle(fontWeight: FontWeight.w500),
+                            ),
+                            SizedBox(height: 16),
+                            Container(
+                              padding: EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Colors.orange.shade50,
+                                borderRadius: BorderRadius.circular(8),
+                                border:
+                                    Border.all(color: Colors.orange.shade200),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(Icons.info_outline,
+                                      color: Colors.orange),
+                                  SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      'For security reasons, you have been signed out. Please log back in as admin to continue managing accounts.',
+                                      style: TextStyle(fontSize: 13),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            if (result['adminEmail'] != null) ...[
+                              SizedBox(height: 12),
+                              Text(
+                                'Admin email: ${result['adminEmail']}',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey.shade600,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                        actions: [
+                          FilledButton(
+                            onPressed: () => Navigator.pop(context),
+                            child: Text('OK'),
+                          ),
+                        ],
                       ),
                     );
-                  } catch (e) {
-                    ScaffoldMessenger.of(
-                      context,
-                    ).showSnackBar(SnackBar(content: Text('Error: $e')));
+                    return; // Exit early since user will be redirected to login
                   }
-                },
-                child: Text(student == null ? 'Create' : 'Update'),
-              ),
-            ],
+                } else {
+                  // Update existing student
+                  final updatedStudent = student.copyWith(
+                    name: nameController.text.trim(),
+                    rollNumber: rollNumberController.text.trim(),
+                    academicYearId: dialogAcademicYearId!,
+                    gradeId: dialogGradeId!,
+                    divisionId: dialogDivisionId!,
+                    phone: phoneController.text.trim().isEmpty
+                        ? null
+                        : phoneController.text.trim(),
+                    parentEmail: parentEmailController.text.trim().isEmpty
+                        ? null
+                        : parentEmailController.text.trim(),
+                  );
+
+                  await databaseService.updateStudent(updatedStudent);
+                }
+
+                Navigator.pop(context);
+                _loadData();
+
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      student == null
+                          ? 'Student created successfully!'
+                          : 'Student updated successfully!',
+                    ),
+                  ),
+                );
+              } catch (e) {
+                ScaffoldMessenger.of(
+                  context,
+                ).showSnackBar(SnackBar(content: Text('Error: $e')));
+              }
+            },
+            child: Text(student == null ? 'Create' : 'Update'),
           ),
+        ],
+      ),
     );
   }
 
   Future<void> _deleteStudent(StudentModel student) async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder:
-          (context) => AlertDialog(
-            title: const Text('Delete Student'),
-            content: Text('Are you sure you want to delete "${student.name}"?'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('Cancel'),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.pop(context, true),
-                style: FilledButton.styleFrom(backgroundColor: Colors.red),
-                child: const Text('Delete'),
-              ),
-            ],
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Student'),
+        content: Text('Are you sure you want to delete "${student.name}"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
           ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
     );
 
     if (confirmed == true) {
@@ -577,15 +631,14 @@ class _ManageStudentsScreenState extends State<ManageStudentsScreen> {
   String _getDivisionName(String divisionId) {
     final division = _divisions.firstWhere(
       (div) => div.id == divisionId,
-      orElse:
-          () => DivisionModel(
-            id: '',
-            name: 'Unknown Division',
-            institutionId: '',
-            gradeId: '',
-            academicYearId: '',
-            createdAt: DateTime.now(),
-          ),
+      orElse: () => DivisionModel(
+        id: '',
+        name: 'Unknown Division',
+        institutionId: '',
+        gradeId: '',
+        academicYearId: '',
+        createdAt: DateTime.now(),
+      ),
     );
     return division.name;
   }
@@ -620,10 +673,9 @@ class _ManageStudentsScreenState extends State<ManageStudentsScreen> {
                     decoration: InputDecoration(
                       border: const OutlineInputBorder(),
                       isDense: true,
-                      hintText:
-                          _academicYears.isEmpty
-                              ? 'No academic years available'
-                              : 'All academic years',
+                      hintText: _academicYears.isEmpty
+                          ? 'No academic years available'
+                          : 'All academic years',
                     ),
                     items: [
                       const DropdownMenuItem(
@@ -667,10 +719,9 @@ class _ManageStudentsScreenState extends State<ManageStudentsScreen> {
                     decoration: InputDecoration(
                       border: const OutlineInputBorder(),
                       isDense: true,
-                      hintText:
-                          _grades.isEmpty
-                              ? 'Select academic year first'
-                              : 'All classes',
+                      hintText: _grades.isEmpty
+                          ? 'Select academic year first'
+                          : 'All classes',
                     ),
                     items: [
                       const DropdownMenuItem(
@@ -684,18 +735,17 @@ class _ManageStudentsScreenState extends State<ManageStudentsScreen> {
                         );
                       }).toList(),
                     ],
-                    onChanged:
-                        _grades.isEmpty
-                            ? null
-                            : (value) {
-                              setState(() {
-                                _selectedGradeId = value;
-                                _selectedDivisionId = null;
-                                _divisions.clear();
-                              });
-                              if (value != null) _loadDivisions();
-                              _filterStudents();
-                            },
+                    onChanged: _grades.isEmpty
+                        ? null
+                        : (value) {
+                            setState(() {
+                              _selectedGradeId = value;
+                              _selectedDivisionId = null;
+                              _divisions.clear();
+                            });
+                            if (value != null) _loadDivisions();
+                            _filterStudents();
+                          },
                   ),
                 ),
               ],
@@ -718,10 +768,9 @@ class _ManageStudentsScreenState extends State<ManageStudentsScreen> {
                     decoration: InputDecoration(
                       border: const OutlineInputBorder(),
                       isDense: true,
-                      hintText:
-                          _divisions.isEmpty
-                              ? 'Select grade first'
-                              : 'All divisions',
+                      hintText: _divisions.isEmpty
+                          ? 'Select grade first'
+                          : 'All divisions',
                     ),
                     items: [
                       const DropdownMenuItem(
@@ -735,15 +784,14 @@ class _ManageStudentsScreenState extends State<ManageStudentsScreen> {
                         );
                       }).toList(),
                     ],
-                    onChanged:
-                        _divisions.isEmpty
-                            ? null
-                            : (value) {
-                              setState(() {
-                                _selectedDivisionId = value;
-                              });
-                              _filterStudents();
-                            },
+                    onChanged: _divisions.isEmpty
+                        ? null
+                        : (value) {
+                            setState(() {
+                              _selectedDivisionId = value;
+                            });
+                            _filterStudents();
+                          },
                   ),
                 ),
               ],
@@ -773,45 +821,43 @@ class _ManageStudentsScreenState extends State<ManageStudentsScreen> {
           ),
         ],
       ),
-      body:
-          _isLoading
-              ? const Center(child: CircularProgressIndicator())
-              : _students.isEmpty
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _students.isEmpty
               ? Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(
-                      Icons.school_outlined,
-                      size: 64,
-                      color: Colors.grey,
-                    ),
-                    const SizedBox(height: 16),
-                    const Text(
-                      'No students found',
-                      style: TextStyle(fontSize: 18, color: Colors.grey),
-                    ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      'Create student accounts for your institution',
-                      style: TextStyle(color: Colors.grey),
-                    ),
-                    const SizedBox(height: 16),
-                    FilledButton.icon(
-                      onPressed: () => _showCreateStudentDialog(),
-                      icon: const Icon(Icons.add),
-                      label: const Text('Add Student'),
-                    ),
-                  ],
-                ),
-              )
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(
+                        Icons.school_outlined,
+                        size: 64,
+                        color: Colors.grey,
+                      ),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'No students found',
+                        style: TextStyle(fontSize: 18, color: Colors.grey),
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Create student accounts for your institution',
+                        style: TextStyle(color: Colors.grey),
+                      ),
+                      const SizedBox(height: 16),
+                      FilledButton.icon(
+                        onPressed: () => _showCreateStudentDialog(),
+                        icon: const Icon(Icons.add),
+                        label: const Text('Add Student'),
+                      ),
+                    ],
+                  ),
+                )
               : Column(
-                children: [
-                  _buildSelectionPanel(),
-                  Expanded(
-                    child:
-                        _filteredStudents.isEmpty
-                            ? Center(
+                  children: [
+                    _buildSelectionPanel(),
+                    Expanded(
+                      child: _filteredStudents.isEmpty
+                          ? Center(
                               child: Column(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
@@ -843,7 +889,7 @@ class _ManageStudentsScreenState extends State<ManageStudentsScreen> {
                                 ],
                               ),
                             )
-                            : ListView.builder(
+                          : ListView.builder(
                               padding: const EdgeInsets.all(16),
                               itemCount: _filteredStudents.length,
                               itemBuilder: (context, index) {
@@ -876,15 +922,15 @@ class _ManageStudentsScreenState extends State<ManageStudentsScreen> {
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
                                         IconButton(
-                                          onPressed:
-                                              () => _showCreateStudentDialog(
-                                                student,
-                                              ),
+                                          onPressed: () =>
+                                              _showCreateStudentDialog(
+                                            student,
+                                          ),
                                           icon: const Icon(Icons.edit),
                                         ),
                                         IconButton(
-                                          onPressed:
-                                              () => _deleteStudent(student),
+                                          onPressed: () =>
+                                              _deleteStudent(student),
                                           icon: const Icon(
                                             Icons.delete,
                                             color: Colors.red,
@@ -897,9 +943,9 @@ class _ManageStudentsScreenState extends State<ManageStudentsScreen> {
                                 );
                               },
                             ),
-                  ),
-                ],
-              ),
+                    ),
+                  ],
+                ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showCreateStudentDialog(),
         icon: const Icon(Icons.add),
@@ -913,21 +959,20 @@ class _ManageStudentsScreenState extends State<ManageStudentsScreen> {
   Future<void> _logout(BuildContext context) async {
     final shouldLogout = await showDialog<bool>(
       context: context,
-      builder:
-          (context) => AlertDialog(
-            title: const Text('Logout'),
-            content: const Text('Are you sure you want to logout?'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('Cancel'),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text('Logout'),
-              ),
-            ],
+      builder: (context) => AlertDialog(
+        title: const Text('Logout'),
+        content: const Text('Are you sure you want to logout?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
           ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Logout'),
+          ),
+        ],
+      ),
     );
 
     if (shouldLogout == true && mounted) {

@@ -68,217 +68,278 @@ class _ManageTeachersScreenState extends State<ManageTeachersScreen> {
 
     await showDialog(
       context: context,
-      builder:
-          (context) => AlertDialog(
-            title: Text(teacher == null ? 'Create Teacher' : 'Edit Teacher'),
-            content: StatefulBuilder(
-              builder:
-                  (context, setDialogState) => SingleChildScrollView(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        TextField(
-                          controller: nameController,
-                          decoration: const InputDecoration(
-                            labelText: 'Full Name',
-                            hintText: 'Enter teacher name',
-                          ),
+      builder: (context) => AlertDialog(
+        title: Text(teacher == null ? 'Create Teacher' : 'Edit Teacher'),
+        content: StatefulBuilder(
+          builder: (context, setDialogState) => SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: nameController,
+                  decoration: const InputDecoration(
+                    labelText: 'Full Name',
+                    hintText: 'Enter teacher name',
+                  ),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: emailController,
+                  decoration: const InputDecoration(
+                    labelText: 'Email',
+                    hintText: 'teacher@example.com',
+                  ),
+                  keyboardType: TextInputType.emailAddress,
+                  enabled: teacher ==
+                      null, // Don't allow email change for existing teachers
+                ),
+                if (teacher == null) ...[
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: passwordController,
+                    decoration: const InputDecoration(
+                      labelText: 'Password',
+                      hintText: 'Minimum 6 characters',
+                    ),
+                    obscureText: true,
+                  ),
+                ],
+                const SizedBox(height: 16),
+                TextField(
+                  controller: phoneController,
+                  decoration: const InputDecoration(
+                    labelText: 'Phone (Optional)',
+                    hintText: '+1234567890',
+                  ),
+                  keyboardType: TextInputType.phone,
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: subjectController,
+                  decoration: const InputDecoration(
+                    labelText: 'Subject/Specialization',
+                    hintText: 'e.g., Mathematics, Physics',
+                  ),
+                ),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<String>(
+                  value: selectedDivisionId,
+                  decoration: const InputDecoration(
+                    labelText: 'Division',
+                    border: OutlineInputBorder(),
+                  ),
+                  hint: const Text('Select Division'),
+                  items: _divisions.map((division) {
+                    return DropdownMenuItem(
+                      value: division.id,
+                      child: Text(division.name),
+                    );
+                  }).toList(),
+                  onChanged: (value) {
+                    setDialogState(() => selectedDivisionId = value);
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () async {
+              // Validation
+              if (nameController.text.trim().isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Please enter teacher name'),
+                  ),
+                );
+                return;
+              }
+
+              if (emailController.text.trim().isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Please enter email')),
+                );
+                return;
+              }
+
+              if (teacher == null && passwordController.text.length < 6) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Password must be at least 6 characters'),
+                  ),
+                );
+                return;
+              }
+
+              if (selectedDivisionId == null) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Please select a division')),
+                );
+                return;
+              }
+
+              try {
+                final authService = Provider.of<AuthService>(
+                  context,
+                  listen: false,
+                );
+                final databaseService = Provider.of<DatabaseService>(
+                  context,
+                  listen: false,
+                );
+
+                if (teacher == null) {
+                  // Create new teacher
+                  final result = await authService.createTeacherAccount(
+                    email: emailController.text.trim(),
+                    password: passwordController.text,
+                    name: nameController.text.trim(),
+                    institutionId: widget.institutionId,
+                    divisionId: selectedDivisionId,
+                    phone: phoneController.text.trim().isEmpty
+                        ? null
+                        : phoneController.text.trim(),
+                    subject: subjectController.text.trim().isEmpty
+                        ? null
+                        : subjectController.text.trim(),
+                  );
+
+                  if (!result['success']) {
+                    throw Exception(result['error']);
+                  }
+
+                  // Teacher created successfully, but admin was signed out
+                  if (result['teacherCreated'] == true) {
+                    Navigator.pop(context);
+
+                    // Show success message and inform about re-authentication
+                    showDialog(
+                      context: context,
+                      barrierDismissible: false,
+                      builder: (context) => AlertDialog(
+                        title: Row(
+                          children: [
+                            Icon(Icons.check_circle, color: Colors.green),
+                            SizedBox(width: 8),
+                            Text('Success!'),
+                          ],
                         ),
-                        const SizedBox(height: 16),
-                        TextField(
-                          controller: emailController,
-                          decoration: const InputDecoration(
-                            labelText: 'Email',
-                            hintText: 'teacher@example.com',
-                          ),
-                          keyboardType: TextInputType.emailAddress,
-                          enabled:
-                              teacher ==
-                              null, // Don't allow email change for existing teachers
-                        ),
-                        if (teacher == null) ...[
-                          const SizedBox(height: 16),
-                          TextField(
-                            controller: passwordController,
-                            decoration: const InputDecoration(
-                              labelText: 'Password',
-                              hintText: 'Minimum 6 characters',
+                        content: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Teacher "${nameController.text.trim()}" has been created successfully!',
+                              style: TextStyle(fontWeight: FontWeight.w500),
                             ),
-                            obscureText: true,
+                            SizedBox(height: 16),
+                            Container(
+                              padding: EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Colors.orange.shade50,
+                                borderRadius: BorderRadius.circular(8),
+                                border:
+                                    Border.all(color: Colors.orange.shade200),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(Icons.info_outline,
+                                      color: Colors.orange),
+                                  SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      'For security reasons, you have been signed out. Please log back in as admin to continue managing accounts.',
+                                      style: TextStyle(fontSize: 13),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            if (result['adminEmail'] != null) ...[
+                              SizedBox(height: 12),
+                              Text(
+                                'Admin email: ${result['adminEmail']}',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey.shade600,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                        actions: [
+                          FilledButton(
+                            onPressed: () => Navigator.pop(context),
+                            child: Text('OK'),
                           ),
                         ],
-                        const SizedBox(height: 16),
-                        TextField(
-                          controller: phoneController,
-                          decoration: const InputDecoration(
-                            labelText: 'Phone (Optional)',
-                            hintText: '+1234567890',
-                          ),
-                          keyboardType: TextInputType.phone,
-                        ),
-                        const SizedBox(height: 16),
-                        TextField(
-                          controller: subjectController,
-                          decoration: const InputDecoration(
-                            labelText: 'Subject/Specialization',
-                            hintText: 'e.g., Mathematics, Physics',
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        DropdownButtonFormField<String>(
-                          value: selectedDivisionId,
-                          decoration: const InputDecoration(
-                            labelText: 'Division',
-                            border: OutlineInputBorder(),
-                          ),
-                          hint: const Text('Select Division'),
-                          items:
-                              _divisions.map((division) {
-                                return DropdownMenuItem(
-                                  value: division.id,
-                                  child: Text(division.name),
-                                );
-                              }).toList(),
-                          onChanged: (value) {
-                            setDialogState(() => selectedDivisionId = value);
-                          },
-                        ),
-                      ],
+                      ),
+                    );
+                    return; // Exit early since user will be redirected to login
+                  }
+                } else {
+                  // Update existing teacher
+                  final updatedTeacher = teacher.copyWith(
+                    name: nameController.text.trim(),
+                    phone: phoneController.text.trim().isEmpty
+                        ? null
+                        : phoneController.text.trim(),
+                    subject: subjectController.text.trim().isEmpty
+                        ? null
+                        : subjectController.text.trim(),
+                  );
+
+                  await databaseService.updateTeacher(updatedTeacher);
+                }
+
+                Navigator.pop(context);
+                _loadData();
+
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      teacher == null
+                          ? 'Teacher created successfully!'
+                          : 'Teacher updated successfully!',
                     ),
                   ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Cancel'),
-              ),
-              FilledButton(
-                onPressed: () async {
-                  // Validation
-                  if (nameController.text.trim().isEmpty) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Please enter teacher name'),
-                      ),
-                    );
-                    return;
-                  }
-
-                  if (emailController.text.trim().isEmpty) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Please enter email')),
-                    );
-                    return;
-                  }
-
-                  if (teacher == null && passwordController.text.length < 6) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Password must be at least 6 characters'),
-                      ),
-                    );
-                    return;
-                  }
-
-                  if (selectedDivisionId == null) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Please select a division')),
-                    );
-                    return;
-                  }
-
-                  try {
-                    final authService = Provider.of<AuthService>(
-                      context,
-                      listen: false,
-                    );
-                    final databaseService = Provider.of<DatabaseService>(
-                      context,
-                      listen: false,
-                    );
-
-                    if (teacher == null) {
-                      // Create new teacher
-                      final result = await authService.createTeacherAccount(
-                        email: emailController.text.trim(),
-                        password: passwordController.text,
-                        name: nameController.text.trim(),
-                        institutionId: widget.institutionId,
-                        divisionId: selectedDivisionId,
-                        phone:
-                            phoneController.text.trim().isEmpty
-                                ? null
-                                : phoneController.text.trim(),
-                        subject:
-                            subjectController.text.trim().isEmpty
-                                ? null
-                                : subjectController.text.trim(),
-                      );
-
-                      if (!result['success']) {
-                        throw Exception(result['error']);
-                      }
-                    } else {
-                      // Update existing teacher
-                      final updatedTeacher = teacher.copyWith(
-                        name: nameController.text.trim(),
-                        phone:
-                            phoneController.text.trim().isEmpty
-                                ? null
-                                : phoneController.text.trim(),
-                        subject:
-                            subjectController.text.trim().isEmpty
-                                ? null
-                                : subjectController.text.trim(),
-                      );
-
-                      await databaseService.updateTeacher(updatedTeacher);
-                    }
-
-                    Navigator.pop(context);
-                    _loadData();
-
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          teacher == null
-                              ? 'Teacher created successfully!'
-                              : 'Teacher updated successfully!',
-                        ),
-                      ),
-                    );
-                  } catch (e) {
-                    ScaffoldMessenger.of(
-                      context,
-                    ).showSnackBar(SnackBar(content: Text('Error: $e')));
-                  }
-                },
-                child: Text(teacher == null ? 'Create' : 'Update'),
-              ),
-            ],
+                );
+              } catch (e) {
+                ScaffoldMessenger.of(
+                  context,
+                ).showSnackBar(SnackBar(content: Text('Error: $e')));
+              }
+            },
+            child: Text(teacher == null ? 'Create' : 'Update'),
           ),
+        ],
+      ),
     );
   }
 
   Future<void> _deleteTeacher(TeacherModel teacher) async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder:
-          (context) => AlertDialog(
-            title: const Text('Delete Teacher'),
-            content: Text('Are you sure you want to delete "${teacher.name}"?'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('Cancel'),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.pop(context, true),
-                style: FilledButton.styleFrom(backgroundColor: Colors.red),
-                child: const Text('Delete'),
-              ),
-            ],
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Teacher'),
+        content: Text('Are you sure you want to delete "${teacher.name}"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
           ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
     );
 
     if (confirmed == true) {
@@ -322,88 +383,87 @@ class _ManageTeachersScreenState extends State<ManageTeachersScreen> {
           ),
         ],
       ),
-      body:
-          _isLoading
-              ? const Center(child: CircularProgressIndicator())
-              : _teachers.isEmpty
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _teachers.isEmpty
               ? Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(
-                      Icons.person_outline,
-                      size: 64,
-                      color: Colors.grey,
-                    ),
-                    const SizedBox(height: 16),
-                    const Text(
-                      'No teachers found',
-                      style: TextStyle(fontSize: 18, color: Colors.grey),
-                    ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      'Create teacher accounts for your institution',
-                      style: TextStyle(color: Colors.grey),
-                    ),
-                    const SizedBox(height: 16),
-                    FilledButton.icon(
-                      onPressed: () => _showCreateTeacherDialog(),
-                      icon: const Icon(Icons.add),
-                      label: const Text('Create Teacher'),
-                    ),
-                  ],
-                ),
-              )
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(
+                        Icons.person_outline,
+                        size: 64,
+                        color: Colors.grey,
+                      ),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'No teachers found',
+                        style: TextStyle(fontSize: 18, color: Colors.grey),
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Create teacher accounts for your institution',
+                        style: TextStyle(color: Colors.grey),
+                      ),
+                      const SizedBox(height: 16),
+                      FilledButton.icon(
+                        onPressed: () => _showCreateTeacherDialog(),
+                        icon: const Icon(Icons.add),
+                        label: const Text('Create Teacher'),
+                      ),
+                    ],
+                  ),
+                )
               : ListView.builder(
-                padding: const EdgeInsets.all(16),
-                itemCount: _teachers.length,
-                itemBuilder: (context, index) {
-                  final teacher = _teachers[index];
-                  return Card(
-                    child: ListTile(
-                      leading: CircleAvatar(
-                        child: Text(
-                          teacher.name.isNotEmpty
-                              ? teacher.name[0].toUpperCase()
-                              : 'T',
-                          style: const TextStyle(fontWeight: FontWeight.bold),
+                  padding: const EdgeInsets.all(16),
+                  itemCount: _teachers.length,
+                  itemBuilder: (context, index) {
+                    final teacher = _teachers[index];
+                    return Card(
+                      child: ListTile(
+                        leading: CircleAvatar(
+                          child: Text(
+                            teacher.name.isNotEmpty
+                                ? teacher.name[0].toUpperCase()
+                                : 'T',
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
                         ),
+                        title: Text(teacher.name),
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(teacher.email),
+                            Text('Institution: ${widget.institutionId}'),
+                            if (teacher.subject != null)
+                              Text('Subject: ${teacher.subject}'),
+                          ],
+                        ),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              onPressed: () =>
+                                  _showCreateTeacherDialog(teacher),
+                              icon: const Icon(Icons.edit),
+                            ),
+                            IconButton(
+                              onPressed: () => _deleteTeacher(teacher),
+                              icon: const Icon(Icons.delete, color: Colors.red),
+                            ),
+                          ],
+                        ),
+                        isThreeLine: true,
                       ),
-                      title: Text(teacher.name),
-                      subtitle: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(teacher.email),
-                          Text('Institution: ${widget.institutionId}'),
-                          if (teacher.subject != null)
-                            Text('Subject: ${teacher.subject}'),
-                        ],
-                      ),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          IconButton(
-                            onPressed: () => _showCreateTeacherDialog(teacher),
-                            icon: const Icon(Icons.edit),
-                          ),
-                          IconButton(
-                            onPressed: () => _deleteTeacher(teacher),
-                            icon: const Icon(Icons.delete, color: Colors.red),
-                          ),
-                        ],
-                      ),
-                      isThreeLine: true,
-                    ),
-                  );
-                },
-              ),
-      floatingActionButton:
-          _teachers.isNotEmpty
-              ? FloatingActionButton(
-                onPressed: () => _showCreateTeacherDialog(),
-                child: const Icon(Icons.add),
-              )
-              : null,
+                    );
+                  },
+                ),
+      floatingActionButton: _teachers.isNotEmpty
+          ? FloatingActionButton(
+              onPressed: () => _showCreateTeacherDialog(),
+              child: const Icon(Icons.add),
+            )
+          : null,
     );
   }
 }

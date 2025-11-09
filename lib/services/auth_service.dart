@@ -71,14 +71,27 @@ class AuthService {
     String? subject,
   }) async {
     try {
-      // Note: This will sign out current user temporarily
-      // You may want to use Admin SDK for production
+      // Store current admin user details for re-authentication
+      final currentUser = _auth.currentUser;
+      if (currentUser == null) {
+        return {
+          'success': false,
+          'error': 'No admin user signed in',
+        };
+      }
+
+      final adminEmail = currentUser.email!;
+
+      // Note: We need to temporarily store admin credentials to re-authenticate
+      // This is a limitation of Firebase Auth Client SDK - ideally use Firebase Admin SDK
+
+      // Create new teacher account (this will sign out admin and sign into teacher account)
       UserCredential userCredential = await _auth
           .createUserWithEmailAndPassword(email: email, password: password);
 
       String uid = userCredential.user!.uid;
 
-      // Create user document
+      // Create user document for teacher
       UserModel user = UserModel(
         uid: uid,
         email: email,
@@ -104,11 +117,16 @@ class AuthService {
 
       await _firestore.collection('teachers').doc(uid).set(teacher.toMap());
 
+      // Sign out from teacher account to prepare for admin re-authentication
+      await _auth.signOut();
+
       return {
         'success': true,
         'uid': uid,
         'email': email,
         'password': password,
+        'teacherCreated': true,
+        'adminEmail': adminEmail, // Provide admin email for UI messaging
       };
     } on FirebaseAuthException catch (e) {
       return {
@@ -134,12 +152,27 @@ class AuthService {
     String? parentEmail,
   }) async {
     try {
+      // Store current admin user details for re-authentication
+      final currentUser = _auth.currentUser;
+      if (currentUser == null) {
+        return {
+          'success': false,
+          'error': 'No admin user signed in',
+        };
+      }
+
+      final adminEmail = currentUser.email!;
+
+      // Note: We need to temporarily store admin credentials to re-authenticate
+      // This is a limitation of Firebase Auth Client SDK - ideally use Firebase Admin SDK
+
+      // Create new student account (this will sign out admin and sign into student account)
       UserCredential userCredential = await _auth
           .createUserWithEmailAndPassword(email: email, password: password);
 
       String uid = userCredential.user!.uid;
 
-      // Create user document
+      // Create user document for student
       UserModel user = UserModel(
         uid: uid,
         email: email,
@@ -169,11 +202,16 @@ class AuthService {
 
       await _firestore.collection('students').doc(uid).set(student.toMap());
 
+      // Sign out from student account to prepare for admin re-authentication
+      await _auth.signOut();
+
       return {
         'success': true,
         'uid': uid,
         'email': email,
         'password': password,
+        'studentCreated': true,
+        'adminEmail': adminEmail, // Provide admin email for UI messaging
       };
     } on FirebaseAuthException catch (e) {
       return {
@@ -246,19 +284,62 @@ class AuthService {
   // Get User Role
   Future<UserRole?> getUserRole(String uid) async {
     try {
+      print('AuthService: Getting user role for uid: $uid');
+
       DocumentSnapshot doc =
           await _firestore.collection('users').doc(uid).get();
-      if (doc.exists) {
-        UserModel user = UserModel.fromMap(doc.data() as Map<String, dynamic>);
+
+      print('AuthService: Document exists: ${doc.exists}');
+      print('AuthService: Document has data: ${doc.data() != null}');
+
+      if (doc.exists && doc.data() != null) {
+        Map<String, dynamic> userData = doc.data() as Map<String, dynamic>;
+
+        // Debug: Print user data to help troubleshoot
+        print('AuthService: User data for $uid: $userData');
+
+        UserModel user = UserModel.fromMap(userData);
+        print('AuthService: Parsed user role: ${user.role}');
+
         return user.role;
+      } else {
+        print('AuthService: User document not found for uid: $uid');
+        print('AuthService: Checking other collections for data integrity...');
+
+        // Check if user exists in other collections but missing from users collection
+        DocumentSnapshot adminDoc =
+            await _firestore.collection('admins').doc(uid).get();
+        if (adminDoc.exists) {
+          print(
+              'AuthService: Found user in admins collection, role should be admin');
+          return UserRole.admin;
+        }
+
+        DocumentSnapshot teacherDoc =
+            await _firestore.collection('teachers').doc(uid).get();
+        if (teacherDoc.exists) {
+          print(
+              'AuthService: Found user in teachers collection, role should be teacher');
+          return UserRole.teacher;
+        }
+
+        DocumentSnapshot studentDoc =
+            await _firestore.collection('students').doc(uid).get();
+        if (studentDoc.exists) {
+          print(
+              'AuthService: Found user in students collection, role should be student');
+          return UserRole.student;
+        }
+
+        print('AuthService: User not found in any collection');
       }
       return null;
     } catch (e) {
+      print('AuthService: Error getting user role: $e');
       return null;
     }
-  }
+  } // Get User Data
 
-  // Get User Data
   Future<UserModel?> getUserData(String uid) async {
     try {
       DocumentSnapshot doc =
@@ -331,5 +412,75 @@ class AuthService {
     await _firestore.collection('admins').doc(uid).update({
       'institutionId': institutionId,
     });
+  }
+
+  // Verify and repair user data if needed
+  Future<void> ensureUserDataIntegrity(String uid) async {
+    try {
+      // Check if user document exists
+      DocumentSnapshot userDoc =
+          await _firestore.collection('users').doc(uid).get();
+
+      if (!userDoc.exists) {
+        print(
+            'User document missing for uid: $uid, checking other collections...');
+
+        // Check admin collection
+        DocumentSnapshot adminDoc =
+            await _firestore.collection('admins').doc(uid).get();
+        if (adminDoc.exists) {
+          AdminModel admin =
+              AdminModel.fromMap(adminDoc.data() as Map<String, dynamic>);
+          UserModel user = UserModel(
+            uid: admin.uid,
+            email: admin.email,
+            name: admin.name,
+            role: UserRole.admin,
+            institutionId: admin.institutionId,
+            createdAt: admin.createdAt,
+          );
+          await _firestore.collection('users').doc(uid).set(user.toMap());
+          return;
+        }
+
+        // Check teacher collection
+        DocumentSnapshot teacherDoc =
+            await _firestore.collection('teachers').doc(uid).get();
+        if (teacherDoc.exists) {
+          TeacherModel teacher =
+              TeacherModel.fromMap(teacherDoc.data() as Map<String, dynamic>);
+          UserModel user = UserModel(
+            uid: teacher.uid,
+            email: teacher.email,
+            name: teacher.name,
+            role: UserRole.teacher,
+            institutionId: teacher.institutionId,
+            createdAt: teacher.createdAt,
+          );
+          await _firestore.collection('users').doc(uid).set(user.toMap());
+          return;
+        }
+
+        // Check student collection
+        DocumentSnapshot studentDoc =
+            await _firestore.collection('students').doc(uid).get();
+        if (studentDoc.exists) {
+          StudentModel student =
+              StudentModel.fromMap(studentDoc.data() as Map<String, dynamic>);
+          UserModel user = UserModel(
+            uid: student.uid,
+            email: student.email,
+            name: student.name,
+            role: UserRole.student,
+            institutionId: student.institutionId,
+            createdAt: student.createdAt,
+          );
+          await _firestore.collection('users').doc(uid).set(user.toMap());
+          return;
+        }
+      }
+    } catch (e) {
+      print('Error ensuring user data integrity: $e');
+    }
   }
 }

@@ -2000,7 +2000,7 @@ class DatabaseService {
     }
   }
 
-//Added by kaustubh
+  //Added by kaustubh
   Stream<List<AttendanceModel>> getAttendanceForClass(
       String classId, DateTime startDate, DateTime endDate) {
     return _firestore
